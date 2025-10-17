@@ -2,63 +2,209 @@
   import { onMount } from 'svelte'
   import type { ComponentType } from 'svelte'
 
-  import { routes, type RouteKey } from './routes'
+  import AppShell from './lib/components/AppShell.svelte'
+  import type { NavSection } from './lib/components/appShell.types'
+  import { routes, findRouteByPath, type RouteKey } from './routes'
+  import { sessionStore } from './lib/stores/sessionStore'
+  import { toastError, toastInfo } from './lib/stores/toastStore'
 
-  let currentRoute: RouteKey = 'dashboard'
+  const defaultRoute: RouteKey = 'dashboard'
+
+  const navSections: NavSection[] = [
+    {
+      label: 'Cadence Control',
+      items: [
+        {
+          key: 'dashboard',
+          title: routes.dashboard.title,
+          description: routes.dashboard.description,
+        },
+        {
+          key: 'time',
+          title: routes.time.title,
+          description: routes.time.description,
+        },
+        {
+          key: 'jobs',
+          title: routes.jobs.title,
+          description: routes.jobs.description,
+        },
+      ],
+    },
+    {
+      label: 'Relationships & Pipeline',
+      items: [
+        {
+          key: 'clients',
+          title: routes.clients.title,
+          description: routes.clients.description,
+        },
+        {
+          key: 'deals',
+          title: routes.deals.title,
+          description: routes.deals.description,
+        },
+        {
+          key: 'forms-intake',
+          title: routes['forms-intake'].title,
+          description: routes['forms-intake'].description,
+        },
+      ],
+    },
+    {
+      label: 'Revenue & Costs',
+      items: [
+        {
+          key: 'products',
+          title: routes.products.title,
+          description: routes.products.description,
+        },
+        {
+          key: 'invoices',
+          title: routes.invoices.title,
+          description: routes.invoices.description,
+        },
+        {
+          key: 'payments',
+          title: routes.payments.title,
+          description: routes.payments.description,
+        },
+        {
+          key: 'expenses',
+          title: routes.expenses.title,
+          description: routes.expenses.description,
+        },
+      ],
+    },
+    {
+      label: 'Oversight & System',
+      items: [
+        {
+          key: 'reports',
+          title: routes.reports.title,
+          description: routes.reports.description,
+        },
+        {
+          key: 'settings',
+          title: routes.settings.title,
+          description: routes.settings.description,
+        },
+      ],
+    },
+  ]
+
+  let currentRoute: RouteKey = defaultRoute
   let ActiveRoute: ComponentType | null = null
   let loading = false
+  let loadToken = 0
 
-  const navItems = Object.entries(routes) as [RouteKey, (typeof routes)[RouteKey]][]
-
-  async function loadRoute(route: RouteKey) {
-    loading = true
-    const module = await routes[route].load()
-    ActiveRoute = module.default
-    currentRoute = route
-    loading = false
+  type LoadRouteOptions = {
+    updateHistory?: boolean
+    replace?: boolean
+    force?: boolean
   }
 
-  function buttonClasses(route: RouteKey) {
-    return [
-      'rounded-lg border border-slate-800 px-4 py-2 text-sm font-medium transition-colors',
-      currentRoute === route
-        ? 'bg-brand-primary text-slate-900 shadow'
-        : 'bg-slate-900/60 text-slate-200 hover:bg-slate-800',
-      loading && currentRoute === route ? 'cursor-wait opacity-70' : '',
-    ].join(' ')
+  async function loadRoute(route: RouteKey, options: LoadRouteOptions = {}) {
+    const { updateHistory = false, replace = false, force = false } = options
+
+    if (!force && route === currentRoute && ActiveRoute) {
+      if (updateHistory) {
+        updateHistoryForRoute(route, replace)
+      }
+      return
+    }
+
+    const token = ++loadToken
+    loading = true
+    sessionStore.setLoading(true)
+
+    try {
+      const module = await routes[route].load()
+      if (token !== loadToken) {
+        return
+      }
+
+      ActiveRoute = module.default
+      currentRoute = route
+
+      if (updateHistory) {
+        updateHistoryForRoute(route, replace)
+      }
+    } catch (error) {
+      console.error('Failed to load route', error)
+      if (token === loadToken) {
+        ActiveRoute = null
+        toastError('Failed to load view. Please try again.')
+      }
+    } finally {
+      if (token === loadToken) {
+        loading = false
+        sessionStore.setLoading(false)
+      }
+    }
+  }
+
+  function updateHistoryForRoute(route: RouteKey, replace = false) {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const path = routes[route].path
+    const state = { route }
+
+    if (replace) {
+      window.history.replaceState(state, '', path)
+    } else {
+      window.history.pushState(state, '', path)
+    }
+  }
+
+  function handleNavigate(route: RouteKey) {
+    void loadRoute(route, { updateHistory: true })
+  }
+
+  function handleToggleLowEnd(enabled: boolean) {
+    sessionStore.setLowEndMode(enabled)
+    toastInfo(enabled ? 'Low-end mode enabled for constrained hardware.' : 'Low-end mode disabled.')
   }
 
   onMount(() => {
-    loadRoute(currentRoute)
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const initialRoute = (window.history.state?.route as RouteKey | undefined) ?? findRouteByPath(window.location.pathname) ?? defaultRoute
+    void loadRoute(initialRoute, { updateHistory: true, replace: true, force: true })
+
+    const handlePopState = (event: PopStateEvent) => {
+      const route = (event.state?.route as RouteKey | undefined) ?? findRouteByPath(window.location.pathname) ?? defaultRoute
+      void loadRoute(route, { updateHistory: false, force: true })
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
   })
 </script>
 
-<main class="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-10">
-  <header class="rounded-xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm">
-    <h1 class="text-3xl font-semibold text-slate-100">DigiArtifact Time Manager</h1>
-    <p class="mt-2 text-sm text-slate-400">
-      Offline-first control center for the 60/20/20 production cadence on low-end hardware.
-    </p>
-    <nav class="mt-4 flex flex-wrap gap-2">
-      {#each navItems as [key, meta]}
-        <button class={buttonClasses(key)} on:click={() => loadRoute(key)} disabled={loading && currentRoute === key}>
-          <span class="block text-left text-sm font-semibold text-slate-100">{meta.title}</span>
-          <span class="block text-xs text-slate-300">{meta.description}</span>
-        </button>
-      {/each}
-    </nav>
-  </header>
-
-  <section class="flex flex-1 flex-col gap-4">
-    <article class="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-      {#if loading && !ActiveRoute}
-        <p class="text-sm text-slate-300">Loading module…</p>
-      {:else if ActiveRoute}
-        <svelte:component this={ActiveRoute} />
-      {:else}
-        <p class="text-sm text-slate-300">Select a module to load its view.</p>
-      {/if}
-    </article>
+<AppShell
+  sections={navSections}
+  {currentRoute}
+  {loading}
+  sessionState={$sessionStore}
+  onNavigate={handleNavigate}
+  onToggleLowEnd={handleToggleLowEnd}
+>
+  <div class="flex flex-col gap-6">
+    {#if loading && !ActiveRoute}
+      <section class="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-300">Loading view…</section>
+    {:else if ActiveRoute}
+      <svelte:component this={ActiveRoute} />
+    {:else}
+      <section class="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-300">Select a module to load its view.</section>
+    {/if}
 
     <aside class="rounded-xl border border-teal-800/60 bg-teal-900/30 p-6 text-sm text-teal-100">
       <h2 class="text-lg font-semibold text-teal-100">Offline-first guarantee</h2>
@@ -67,5 +213,5 @@
         run the manager without connectivity or GPU resources.
       </p>
     </aside>
-  </section>
-</main>
+  </div>
+</AppShell>
