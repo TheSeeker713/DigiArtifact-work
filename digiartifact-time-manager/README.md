@@ -36,6 +36,12 @@ CI automation will enforce these targets with Lighthouse and bundle analyzer job
 
 ## Distribution Plan
 
-- Source will live on GitHub under Apache-2.0 + NOTICE attribution.
+- Source will live on GitHub under MIT + NOTICE attribution.
 - Release artifacts: web build (static) with optional desktop wrapper later.
 - Users will clone or download releases to run everything locally without depending on cloud services.
+
+## License & Attribution
+
+- Licensed under the [MIT License](LICENSE); redistribution must retain the license text.
+- Include the [NOTICE](NOTICE) file and visible credit to “DigiArtifact / Jeremy Robards” in derivative works.
+- Contributions are accepted under the same license—see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
