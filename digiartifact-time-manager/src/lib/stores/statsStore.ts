@@ -10,9 +10,17 @@ export type WeeklyTotals = {
 
 export type PerJobTotals = Record<string, number>
 
+export type PrimaryJobTotal = {
+  jobId: string
+  minutes: number
+  hours: number
+}
+
 export type StatsState = {
   weekly: WeeklyTotals
   perJob: PerJobTotals
+  weeklyTotalHours: number
+  primaryJobTotals: PrimaryJobTotal[]
   lastUpdated: string | null
 }
 
@@ -23,7 +31,25 @@ const initialState: StatsState = {
     targetMinutes: defaultSettings.weekTargetHours * 60,
   },
   perJob: {},
+  weeklyTotalHours: 0,
+  primaryJobTotals: [],
   lastUpdated: null,
+}
+
+function minutesToHours(minutes: number) {
+  return Math.max(0, Math.round((minutes / 60) * 100) / 100)
+}
+
+function computePrimaryJobTotals(perJob: PerJobTotals): PrimaryJobTotal[] {
+  return Object.entries(perJob)
+    .filter(([, minutes]) => minutes > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([jobId, minutes]) => ({
+      jobId,
+      minutes,
+      hours: minutesToHours(minutes),
+    }))
 }
 
 function createStatsStore() {
@@ -31,8 +57,17 @@ function createStatsStore() {
 
   return {
     subscribe: store.subscribe,
-    setSnapshot(snapshot: StatsState) {
-      store.set({ ...snapshot, perJob: { ...snapshot.perJob } })
+    setSnapshot(snapshot: { weekly: WeeklyTotals; perJob: PerJobTotals; lastUpdated: string | null }) {
+      const weeklyTotalHours = minutesToHours(snapshot.weekly.totalMinutes)
+      const primaryJobTotals = computePrimaryJobTotals(snapshot.perJob)
+
+      store.set({
+        weekly: snapshot.weekly,
+        perJob: { ...snapshot.perJob },
+        weeklyTotalHours,
+        primaryJobTotals,
+        lastUpdated: snapshot.lastUpdated,
+      })
     },
     applyTimeDelta(
       weekBucket: string,
@@ -63,19 +98,27 @@ function createStatsStore() {
         return {
           weekly,
           perJob,
+          weeklyTotalHours: minutesToHours(weekly.totalMinutes),
+          primaryJobTotals: computePrimaryJobTotals(perJob),
           lastUpdated: new Date().toISOString(),
         }
       })
     },
     setTargetMinutes(weekBucket: string, targetMinutes: number) {
-      store.update((state) => ({
-        weekly:
+      store.update((state) => {
+        const weekly =
           state.weekly.weekBucket === weekBucket
             ? { ...state.weekly, targetMinutes }
-            : { weekBucket, totalMinutes: 0, targetMinutes },
-        perJob: state.perJob,
-        lastUpdated: new Date().toISOString(),
-      }))
+            : { weekBucket, totalMinutes: 0, targetMinutes }
+
+        return {
+          weekly,
+          perJob: state.perJob,
+          weeklyTotalHours: minutesToHours(weekly.totalMinutes),
+          primaryJobTotals: computePrimaryJobTotals(state.perJob),
+          lastUpdated: new Date().toISOString(),
+        }
+      })
     },
     reset() {
       store.set({ ...initialState })
