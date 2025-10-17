@@ -44,6 +44,7 @@ export type JobRecord = BaseRecord & {
   clientId?: string
   rate?: number
   status?: string
+  description?: string
 }
 
 export type TaskRecord = BaseRecord & {

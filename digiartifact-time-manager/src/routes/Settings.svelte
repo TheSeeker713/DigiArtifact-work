@@ -7,11 +7,16 @@
     settingsStore,
     type Settings,
   } from '../lib/stores/settingsStore'
+  import { jobsTasksStore } from '../lib/stores/jobsTasksStore'
+  import { resetJobsAndTasks } from '../lib/services/jobsTasksService'
+  import { toastError, toastInfo, toastSuccess } from '../lib/stores/toastStore'
+  import { eventBus } from '../lib/events/eventBus'
 
   type SaveState = 'idle' | 'saved'
 
   let form: Settings = cloneSettingsSnapshot(get(settingsStore))
   let saveState: SaveState = 'idle'
+  let resettingJobs = false
 
   $: jobKeys = Object.keys(form.jobTargets)
 
@@ -19,6 +24,7 @@
     event.preventDefault()
     const sanitized = sanitizeForm(form)
     settingsStore.set(sanitized)
+  eventBus.emit('settings:updated', undefined as void)
     form = cloneSettingsSnapshot(sanitized)
     saveState = 'saved'
     setTimeout(() => {
@@ -30,6 +36,34 @@
     settingsStore.reset()
     form = cloneSettingsSnapshot(get(settingsStore))
     saveState = 'idle'
+    eventBus.emit('settings:updated', undefined as void)
+  }
+
+  async function handleResetJobs() {
+    const firstCheck = window.confirm(
+      'This will archive all jobs and tasks. Time logs stay intact. Continue?',
+    )
+    if (!firstCheck) {
+      return
+    }
+
+    const typed = window.prompt('Type RESET to confirm the jobs/tasks reset.')
+    if (!typed || typed.trim().toUpperCase() !== 'RESET') {
+      toastInfo('Reset cancelled.')
+      return
+    }
+
+    resettingJobs = true
+    try {
+      await resetJobsAndTasks()
+      await jobsTasksStore.refresh()
+      toastSuccess('Jobs and tasks reset complete.')
+    } catch (error) {
+      console.error(error)
+      toastError('Could not reset jobs and tasks. Please retry.')
+    } finally {
+      resettingJobs = false
+    }
   }
 
   function sanitizeForm(settings: Settings): Settings {
@@ -150,6 +184,24 @@
       {/if}
     </div>
   </form>
+
+  <article class="space-y-4 rounded-xl border border-rose-900/60 bg-rose-950/30 p-6 text-sm">
+    <header class="space-y-1">
+      <h3 class="text-lg font-semibold text-rose-200">Reset Jobs & Tasks</h3>
+      <p class="text-xs text-rose-300/80">
+        Double-confirm to archive every job and task. This keeps time logs intact while clearing the
+        planner. A record writes to the audit log for traceability.
+      </p>
+    </header>
+    <button
+      type="button"
+      class="rounded-lg border border-rose-700 bg-rose-900/40 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-900/60 disabled:opacity-60"
+      on:click={handleResetJobs}
+      disabled={resettingJobs}
+    >
+      {resettingJobs ? 'Resetting…' : 'Reset all jobs & tasks'}
+    </button>
+  </article>
 
   <footer class="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-300">
     Settings persist locally in `localStorage` so offline browsers reuse the cadence even without a
