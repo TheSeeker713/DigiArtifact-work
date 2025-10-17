@@ -1,22 +1,11 @@
 import { writable } from 'svelte/store'
 
-import { JOB_TARGETS, TIMEZONE, WEEK_START, WEEK_TARGET_HOURS } from '../config/appConfig'
+import { SETTINGS_CURRENT_KEY, seedDefaults } from '../data/seed'
+import { settingsRepo } from '../repos/settingsRepo'
+import { defaultSettings, type Settings } from '../types/settings'
 
-export type Settings = {
-  timezone: string
-  weekStart: string
-  weekTargetHours: number
-  jobTargets: Record<string, number>
-}
-
-export const STORAGE_KEY = 'datm.settings.v1'
-
-export const defaultSettings: Settings = {
-  timezone: TIMEZONE,
-  weekStart: WEEK_START,
-  weekTargetHours: WEEK_TARGET_HOURS,
-  jobTargets: { ...JOB_TARGETS },
-}
+export { defaultSettings }
+export type { Settings }
 
 function sanitizeJobTargets(candidate: unknown, fallback: Record<string, number>) {
   if (!candidate || typeof candidate !== 'object') {
@@ -35,7 +24,29 @@ function sanitizeJobTargets(candidate: unknown, fallback: Record<string, number>
   return Object.keys(next).length ? next : { ...fallback }
 }
 
-function cloneSettings(settings: Settings): Settings {
+function normalizeSettings(candidate: unknown): Settings {
+  if (!candidate || typeof candidate !== 'object') {
+    return cloneSettings(defaultSettings)
+  }
+
+  const value = candidate as Partial<Settings>
+
+  return {
+    timezone: typeof value.timezone === 'string' && value.timezone.trim().length
+      ? value.timezone
+      : defaultSettings.timezone,
+    weekStart: typeof value.weekStart === 'string' && value.weekStart.trim().length
+      ? value.weekStart
+      : defaultSettings.weekStart,
+    weekTargetHours:
+      Number.isFinite(Number(value.weekTargetHours)) && Number(value.weekTargetHours) >= 0
+        ? Number(value.weekTargetHours)
+        : defaultSettings.weekTargetHours,
+    jobTargets: sanitizeJobTargets(value.jobTargets, defaultSettings.jobTargets),
+  }
+}
+
+export function cloneSettings(settings: Settings): Settings {
   return {
     timezone: settings.timezone,
     weekStart: settings.weekStart,
@@ -44,42 +55,39 @@ function cloneSettings(settings: Settings): Settings {
   }
 }
 
-function loadSettings(): Settings {
-  if (typeof window === 'undefined') {
-    return cloneSettings(defaultSettings)
-  }
-
-  const raw = window.localStorage.getItem(STORAGE_KEY)
-  if (!raw) {
-    return cloneSettings(defaultSettings)
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<Settings>
-    return {
-      timezone: parsed.timezone ?? defaultSettings.timezone,
-      weekStart: parsed.weekStart ?? defaultSettings.weekStart,
-      weekTargetHours: Number.isFinite(Number(parsed.weekTargetHours))
-        ? Number(parsed.weekTargetHours)
-        : defaultSettings.weekTargetHours,
-      jobTargets: sanitizeJobTargets(parsed.jobTargets, defaultSettings.jobTargets),
-    }
-  } catch (error) {
-    console.warn('settingsStore: failed to parse persisted settings', error)
-    return cloneSettings(defaultSettings)
-  }
-}
-
 function createSettingsStore() {
-  const store = writable<Settings>(loadSettings())
+  const store = writable<Settings>(cloneSettings(defaultSettings))
+  let hydrated = false
 
-  const persist = (settings: Settings) => {
+  async function hydrate() {
     if (typeof window === 'undefined') return
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+
+    try {
+      await seedDefaults()
+      const record = await settingsRepo.getByKey(SETTINGS_CURRENT_KEY)
+      if (record && record.value) {
+        store.set(normalizeSettings(record.value))
+      } else {
+        store.set(cloneSettings(defaultSettings))
+        await settingsRepo.upsert(SETTINGS_CURRENT_KEY, defaultSettings)
+      }
+    } catch (error) {
+      console.warn('settingsStore: hydration failed, using defaults', error)
+      store.set(cloneSettings(defaultSettings))
+    } finally {
+      hydrated = true
+    }
   }
 
-  store.subscribe((value) => {
-    persist(value)
+  void hydrate()
+
+  store.subscribe(async (value) => {
+    if (!hydrated || typeof window === 'undefined') return
+    try {
+      await settingsRepo.upsert(SETTINGS_CURRENT_KEY, cloneSettings(value))
+    } catch (error) {
+      console.warn('settingsStore: failed to persist settings', error)
+    }
   })
 
   return {
