@@ -28,3 +28,4 @@ Thanks for your interest in helping build the offline-first time manager. Please
 - Retain the attribution requirements noted in `LICENSE` and `NOTICE` when redistributing builds or documentation.
 
 By contributing, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+p3epro.com 11.11.2025

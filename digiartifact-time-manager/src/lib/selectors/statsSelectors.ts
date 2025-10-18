@@ -47,3 +47,26 @@ export const primaryJobTotalsSelector = derived(
   },
   [],
 )
+
+export const targetJobProgressSelector = derived(
+  [statsStore, jobsTasksStore, settingsStore],
+  ([$stats, $jobs, $settings]) => {
+    const titleToId = new Map($jobs.map((job) => [job.title, job.id]))
+
+    return Object.entries($settings.jobTargets).map(([title, targetHours]) => {
+      const jobId = titleToId.get(title) ?? null
+      const minutes = jobId ? $stats.perJob[jobId] ?? 0 : 0
+      const hours = Math.round((minutes / 60) * 100) / 100
+      const ratio = targetHours > 0 ? Math.min(1, hours / targetHours) : 0
+
+      return {
+        title,
+        jobId,
+        hours,
+        targetHours,
+        ratio,
+      }
+    })
+  },
+  [],
+)

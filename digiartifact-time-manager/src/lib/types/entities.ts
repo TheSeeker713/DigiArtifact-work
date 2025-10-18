@@ -20,6 +20,7 @@ export type ClientRecord = BaseRecord & {
   website?: string
   status?: string
   tags?: string[]
+  notes?: string
 }
 
 export type ContactRecord = BaseRecord & {
