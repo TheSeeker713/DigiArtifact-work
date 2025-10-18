@@ -162,6 +162,11 @@ body {
   transform: translateY(-1px);
 }
 
+/* Info/warning text - readable blue in light mode */
+.text-sky-600 {
+  color: rgb(2 132 199) !important; /* sky-600 - deep blue, very readable */
+}
+
 /* ===================================================================
    DARK MODE OVERRIDES
    Restore original dark colors when .dark-mode class is present
@@ -200,6 +205,11 @@ body.dark-mode .rounded-lg.border {
   background: rgb(15 23 42) !important;
   backdrop-filter: none !important;
   border-color: rgb(51 65 85) !important;
+}
+
+/* Info/warning text - lighter blue in dark mode */
+body.dark-mode .text-sky-600 {
+  color: rgb(125 211 252) !important; /* sky-300 - light blue for dark backgrounds */
 }
 
 /* Backgrounds - DARK (solid, no glass) in dark mode */

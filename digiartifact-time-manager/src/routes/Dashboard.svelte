@@ -221,8 +221,8 @@
                 ></div>
               </div>
               {#if !job.jobId}
-                <p class="text-[11px] text-amber-300/80">
-                  No job named “{job.title}” yet. Add one in Jobs to track this target.
+                <p class="text-[11px] font-medium text-sky-600">
+                  No job named "{job.title}" yet. Add one in Jobs to track this target.
                 </p>
               {/if}
             </li>
