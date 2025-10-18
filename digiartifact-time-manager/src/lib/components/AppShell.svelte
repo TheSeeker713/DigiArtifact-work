@@ -17,6 +17,7 @@
     lastSyncedAt: null,
     performanceMonitorEnabled: false,
     highContrast: false,
+    theme: 'light',
   }
 
   const dispatch = createEventDispatcher()

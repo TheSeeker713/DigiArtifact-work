@@ -12,6 +12,7 @@ export type RouteKey =
   | 'products'
   | 'reports'
   | 'forms-intake'
+  | 'help'
   | 'settings'
 
 export type RouteComponent = new (...args: any[]) => SvelteComponent
@@ -92,6 +93,12 @@ export const routes: Record<RouteKey, RouteDefinition> = {
     path: '/forms/intake',
     load: () => import('./FormsIntake.svelte'),
   },
+  help: {
+    title: 'Help & Support',
+    description: 'About, how-to guides, and keyboard shortcuts.',
+    path: '/help',
+    load: () => import('./Help.svelte'),
+  },
   settings: {
     title: 'Settings',
     description: 'Tune the 60/20/20 targets, timezone, and cadence defaults.',
@@ -112,6 +119,7 @@ export const orderedRoutes: RouteKey[] = [
   'products',
   'reports',
   'forms-intake',
+  'help',
   'settings',
 ]
 

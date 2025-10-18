@@ -46,6 +46,7 @@ function normalizeSettings(candidate: unknown): Settings {
     lowEndMode: typeof value.lowEndMode === 'boolean' ? value.lowEndMode : defaultSettings.lowEndMode,
     performanceMonitorEnabled: typeof value.performanceMonitorEnabled === 'boolean' ? value.performanceMonitorEnabled : defaultSettings.performanceMonitorEnabled,
     highContrast: typeof value.highContrast === 'boolean' ? value.highContrast : defaultSettings.highContrast,
+    theme: value.theme === 'light' || value.theme === 'dark' ? value.theme : defaultSettings.theme,
   }
 }
 
@@ -58,6 +59,7 @@ export function cloneSettings(settings: Settings): Settings {
     lowEndMode: settings.lowEndMode,
     performanceMonitorEnabled: settings.performanceMonitorEnabled,
     highContrast: settings.highContrast,
+    theme: settings.theme,
   }
 }
 

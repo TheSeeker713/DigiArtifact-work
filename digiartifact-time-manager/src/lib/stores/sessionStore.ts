@@ -8,6 +8,7 @@ export type SessionState = {
   lastSyncedAt?: string | null;
   performanceMonitorEnabled: boolean;
   highContrast: boolean;
+  theme: 'light' | 'dark';
 }
 
 const initialState: SessionState = {
@@ -16,6 +17,7 @@ const initialState: SessionState = {
   lastSyncedAt: null,
   performanceMonitorEnabled: false,
   highContrast: false,
+  theme: 'light',
 }
 
 function createSessionStore() {
@@ -32,17 +34,24 @@ function createSessionStore() {
     const lowEndMode = settings.lowEndMode !== undefined ? settings.lowEndMode : autoDetect
     const performanceMonitorEnabled = settings.performanceMonitorEnabled ?? false
     const highContrast = settings.highContrast ?? false
+    const theme = settings.theme ?? 'light'
 
     store.update((state) => ({
       ...state,
       lowEndMode,
       performanceMonitorEnabled,
       highContrast,
+      theme,
     }))
     if (highContrast) {
       document.body.classList.add('high-contrast')
     } else {
       document.body.classList.remove('high-contrast')
+    }
+    if (theme === 'dark') {
+      document.body.classList.add('dark-mode')
+    } else {
+      document.body.classList.remove('dark-mode')
     }
   }
 
@@ -65,6 +74,15 @@ function createSessionStore() {
         document.body.classList.add('high-contrast')
       } else {
         document.body.classList.remove('high-contrast')
+      }
+    },
+    setTheme(theme: 'light' | 'dark') {
+      store.update((state) => ({ ...state, theme }))
+      settingsStore.update((s) => ({ ...s, theme }))
+      if (theme === 'dark') {
+        document.body.classList.add('dark-mode')
+      } else {
+        document.body.classList.remove('dark-mode')
       }
     },
     setLoading(isLoading: boolean) {

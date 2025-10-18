@@ -8,6 +8,7 @@ export type Settings = {
   lowEndMode?: boolean;
   performanceMonitorEnabled?: boolean;
   highContrast?: boolean;
+  theme?: 'light' | 'dark';
 }
 
 export const defaultSettings: Settings = {
@@ -18,4 +19,5 @@ export const defaultSettings: Settings = {
   lowEndMode: undefined, // auto-detect if undefined
   performanceMonitorEnabled: false,
   highContrast: false,
+  theme: 'light',
 }

@@ -184,6 +184,35 @@
 
     <fieldset class="space-y-4">
       <legend class="text-sm font-semibold uppercase tracking-wide text-slate-400">
+        Appearance
+      </legend>
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="flex flex-col gap-2 text-sm text-slate-200">
+          <span class="font-semibold text-slate-100">Theme</span>
+          <select
+            class="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+            bind:value={form.theme}
+            on:change={() => sessionStore.setTheme(form.theme ?? 'light')}
+          >
+            <option value="light">Light Mode (Day)</option>
+            <option value="dark">Dark Mode (Night)</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-3 text-sm text-slate-200">
+          <input
+            type="checkbox"
+            bind:checked={form.highContrast}
+            aria-checked={form.highContrast}
+            aria-label="Enable high-contrast theme"
+            on:change={() => sessionStore.setHighContrast(form.highContrast ?? false)}
+          />
+          <span>High-contrast mode</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="space-y-4">
+      <legend class="text-sm font-semibold uppercase tracking-wide text-slate-400">
         Performance & Low-End
       </legend>
       <div class="grid gap-3 md:grid-cols-2">

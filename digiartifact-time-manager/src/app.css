@@ -1,3 +1,47 @@
+@import "tailwindcss";
+@import 'uplot/dist/uPlot.min.css';
+
+@theme {
+  --color-brand-primary: #38bdf8;
+  --color-brand-accent: #f97316;
+}
+
+:root {
+  color-scheme: light;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  
+  /* Light mode colors */
+  --bg-primary: rgb(248 250 252);
+  --bg-secondary: rgb(241 245 249);
+  --bg-tertiary: rgb(255 255 255);
+  --text-primary: rgb(15 23 42);
+  --text-secondary: rgb(51 65 85);
+  --text-tertiary: rgb(100 116 139);
+  --border-primary: rgb(226 232 240);
+  --border-secondary: rgb(203 213 225);
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+body.dark-mode {
+  --bg-primary: rgb(2 6 23);
+  --bg-secondary: rgb(15 23 42);
+  --bg-tertiary: rgb(30 41 59);
+  --text-primary: rgb(241 245 249);
+  --text-secondary: rgb(203 213 225);
+  --text-tertiary: rgb(148 163 184);
+  --border-primary: rgb(51 65 85);
+  --border-secondary: rgb(71 85 105);
+}
+
+#app {
+  min-height: 100vh;
+}
+
 /* High-contrast theme overrides */
 .high-contrast {
   --brand-primary: #fff200;
@@ -18,22 +62,4 @@
 }
 .high-contrast .focus-visible {
   outline: 2px solid #fff200 !important;
-}
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@import 'uplot/dist/uPlot.min.css';
-
-:root {
-  color-scheme: light;
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-body {
-  @apply bg-slate-950 text-slate-100 min-h-screen;
-}
-
-#app {
-  @apply min-h-screen;
 }

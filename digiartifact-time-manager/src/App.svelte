@@ -86,6 +86,11 @@
           description: routes.reports.description,
         },
         {
+          key: 'help',
+          title: routes.help.title,
+          description: routes.help.description,
+        },
+        {
           key: 'settings',
           title: routes.settings.title,
           description: routes.settings.description,
