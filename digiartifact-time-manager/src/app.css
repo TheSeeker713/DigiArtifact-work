@@ -10,25 +10,30 @@
   color-scheme: light;
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   
-  /* Light mode colors - Light/neutral theme */
-  --bg-primary: rgb(248 250 252);      /* slate-50 */
+  /* Light mode colors - Modern gradient theme */
+  --bg-primary: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
   --bg-secondary: rgb(241 245 249);    /* slate-100 */
   --bg-tertiary: rgb(255 255 255);     /* white */
-  --bg-card: rgb(255 255 255);         /* white */
-  --bg-card-hover: rgb(248 250 252);   /* slate-50 */
+  --bg-card: rgba(255, 255, 255, 0.7); /* semi-transparent white for glass effect */
+  --bg-card-hover: rgba(248, 250, 252, 0.9); /* subtle hover */
   
   --text-primary: rgb(15 23 42);       /* slate-900 */
   --text-secondary: rgb(51 65 85);     /* slate-700 */
   --text-tertiary: rgb(100 116 139);   /* slate-500 */
   --text-muted: rgb(148 163 184);      /* slate-400 */
   
-  --border-primary: rgb(226 232 240);  /* slate-200 */
-  --border-secondary: rgb(203 213 225); /* slate-300 */
-  --border-card: rgb(226 232 240);     /* slate-200 */
+  --border-primary: rgba(226, 232, 240, 0.6);  /* semi-transparent border */
+  --border-secondary: rgba(203, 213, 225, 0.6);
+  --border-card: rgba(226, 232, 240, 0.4);
+  
+  /* Glass effect shadows */
+  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  --shadow-glass-hover: 0 12px 48px 0 rgba(31, 38, 135, 0.25);
 }
 
 body {
-  background-color: var(--bg-primary);
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+  background-attachment: fixed;
   color: var(--text-primary);
   min-height: 100vh;
 }
@@ -38,12 +43,14 @@ body {
    Force all dark Tailwind classes to show light colors
    =================================================================== */
 
-/* Backgrounds - make them WHITE/LIGHT in light mode */
+/* Backgrounds - GLASS EFFECT in light mode */
 .bg-slate-950,
 .bg-slate-950\/80,
 .bg-slate-950\/60,
 .bg-slate-950\/30 {
-  background-color: rgb(248 250 252) !important; /* very light gray - slate-50 */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(240, 249, 255, 0.9) 100%) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
 }
 
 .bg-slate-900,
@@ -51,37 +58,44 @@ body {
 .bg-slate-900\/80,
 .bg-slate-900\/70,
 .bg-slate-900\/60 {
-  background-color: rgb(255 255 255) !important; /* pure white */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(248, 250, 252, 0.85) 100%) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1) !important;
 }
 
 .bg-slate-800,
 .bg-slate-800\/70,
 .bg-slate-800\/80 {
-  background-color: rgb(248 250 252) !important; /* very light gray - slate-50 */
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.9) 0%, rgba(241, 245, 249, 0.95) 100%) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
 
-/* Borders - make them LIGHT in light mode */
+/* Borders - SUBTLE GLASS BORDERS in light mode */
 .border-slate-800 {
-  border-color: rgb(226 232 240) !important; /* slate-200 - light border */
+  border-color: rgba(56, 189, 248, 0.2) !important; /* subtle blue tint */
 }
 
 .border-slate-700 {
-  border-color: rgb(203 213 225) !important; /* slate-300 - light border */
+  border-color: rgba(56, 189, 248, 0.15) !important; /* very subtle blue */
 }
 
 .border-slate-600 {
-  border-color: rgb(203 213 225) !important; /* slate-300 - light border */
+  border-color: rgba(203, 213, 225, 0.3) !important; /* light neutral */
 }
 
-/* Text - make it DARK in light mode */
+/* Text - ENHANCED CONTRAST for readability on glass */
 .text-slate-100,
 .text-slate-200,
 .text-slate-300 {
   color: rgb(15 23 42) !important; /* slate-900 - very dark text */
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8); /* subtle text shadow for depth */
 }
 
 .text-slate-400 {
   color: rgb(71 85 105) !important; /* slate-600 - medium gray text */
+  font-weight: 500; /* slightly bolder for better readability */
 }
 
 .text-slate-500 {
@@ -90,15 +104,62 @@ body {
 
 .text-slate-50 {
   color: rgb(15 23 42) !important; /* slate-900 - dark text */
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
 }
 
-/* Hover states - light backgrounds in light mode */
+/* Hover states - ENHANCED GLASS EFFECT in light mode */
 .hover\:bg-slate-800:hover {
-  background-color: rgb(226 232 240) !important; /* slate-200 - light hover */
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(226, 232, 240, 0.8) 100%) !important;
+  backdrop-filter: blur(10px) !important;
+  box-shadow: 0 4px 16px 0 rgba(56, 189, 248, 0.2) !important;
+  transform: translateY(-1px);
+  transition: all 0.3s ease;
 }
 
 .hover\:bg-slate-900:hover {
-  background-color: rgb(241 245 249) !important; /* slate-100 - light hover */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(241, 245, 249, 0.95) 100%) !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 6px 24px 0 rgba(31, 38, 135, 0.15) !important;
+  transform: translateY(-1px);
+  transition: all 0.3s ease;
+}
+
+/* ===================================================================
+   GLASSMORPHISM ENHANCEMENTS
+   Add glass effects to rounded cards and sections
+   =================================================================== */
+
+/* Add glass effect to all rounded-xl elements (cards) */
+.rounded-xl {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 250, 252, 0.9) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  transition: all 0.3s ease;
+}
+
+.rounded-xl:hover {
+  box-shadow: 0 12px 48px 0 rgba(31, 38, 135, 0.15),
+              inset 0 1px 0 0 rgba(255, 255, 255, 1);
+  transform: translateY(-2px);
+}
+
+/* Enhanced input fields with glass effect */
+.rounded-lg.border {
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(8px);
+  border-color: rgba(56, 189, 248, 0.25) !important;
+  transition: all 0.3s ease;
+}
+
+.rounded-lg.border:focus,
+.rounded-lg.border:focus-within {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(56, 189, 248, 0.5) !important;
+  box-shadow: 0 4px 16px 0 rgba(56, 189, 248, 0.15);
+  transform: translateY(-1px);
 }
 
 /* ===================================================================
@@ -108,6 +169,7 @@ body {
 
 body.dark-mode {
   color-scheme: dark;
+  background: rgb(2 6 23) !important; /* solid dark background, no gradient */
   
   /* Dark mode color variables */
   --bg-primary: rgb(2 6 23);           /* slate-950 */
@@ -126,12 +188,28 @@ body.dark-mode {
   --border-card: rgb(51 65 85);        /* slate-700 */
 }
 
-/* Backgrounds - DARK in dark mode */
+/* Remove glass effects in dark mode */
+body.dark-mode .rounded-xl {
+  background: rgb(30 41 59) !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  border: 1px solid rgb(51 65 85) !important;
+}
+
+body.dark-mode .rounded-lg.border {
+  background: rgb(15 23 42) !important;
+  backdrop-filter: none !important;
+  border-color: rgb(51 65 85) !important;
+}
+
+/* Backgrounds - DARK (solid, no glass) in dark mode */
 body.dark-mode .bg-slate-950,
 body.dark-mode .bg-slate-950\/80,
 body.dark-mode .bg-slate-950\/60,
 body.dark-mode .bg-slate-950\/30 {
-  background-color: rgb(2 6 23) !important; /* slate-950 - darkest */
+  background: rgb(2 6 23) !important; /* slate-950 - darkest */
+  backdrop-filter: none !important;
+  box-shadow: none !important;
 }
 
 body.dark-mode .bg-slate-900,
@@ -139,13 +217,17 @@ body.dark-mode .bg-slate-900\/95,
 body.dark-mode .bg-slate-900\/80,
 body.dark-mode .bg-slate-900\/70,
 body.dark-mode .bg-slate-900\/60 {
-  background-color: rgb(15 23 42) !important; /* slate-900 - very dark */
+  background: rgb(15 23 42) !important; /* slate-900 - very dark */
+  backdrop-filter: none !important;
+  box-shadow: none !important;
 }
 
 body.dark-mode .bg-slate-800,
 body.dark-mode .bg-slate-800\/70,
 body.dark-mode .bg-slate-800\/80 {
-  background-color: rgb(30 41 59) !important; /* slate-800 - dark */
+  background: rgb(30 41 59) !important; /* slate-800 - dark */
+  backdrop-filter: none !important;
+  box-shadow: none !important;
 }
 
 /* Borders - DARK in dark mode */
@@ -161,15 +243,17 @@ body.dark-mode .border-slate-600 {
   border-color: rgb(71 85 105) !important; /* slate-600 - medium dark border */
 }
 
-/* Text - LIGHT in dark mode */
+/* Text - LIGHT (no shadows) in dark mode */
 body.dark-mode .text-slate-100,
 body.dark-mode .text-slate-200,
 body.dark-mode .text-slate-300 {
   color: rgb(241 245 249) !important; /* slate-100 - very light text */
+  text-shadow: none !important;
 }
 
 body.dark-mode .text-slate-400 {
   color: rgb(148 163 184) !important; /* slate-400 - medium light text */
+  font-weight: normal !important;
 }
 
 body.dark-mode .text-slate-500 {
@@ -178,15 +262,22 @@ body.dark-mode .text-slate-500 {
 
 body.dark-mode .text-slate-50 {
   color: rgb(248 250 252) !important; /* slate-50 - very light text */
+  text-shadow: none !important;
 }
 
-/* Hover states - DARK backgrounds in dark mode */
+/* Hover states - DARK (solid, no glass) in dark mode */
 body.dark-mode .hover\:bg-slate-800:hover {
-  background-color: rgb(30 41 59) !important; /* slate-800 - dark hover */
+  background: rgb(30 41 59) !important; /* slate-800 - dark hover */
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 body.dark-mode .hover\:bg-slate-900:hover {
-  background-color: rgb(15 23 42) !important; /* slate-900 - darker hover */
+  background: rgb(15 23 42) !important; /* slate-900 - darker hover */
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 #app {
