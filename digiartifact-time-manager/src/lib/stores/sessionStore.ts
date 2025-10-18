@@ -34,7 +34,9 @@ function createSessionStore() {
     const lowEndMode = settings.lowEndMode !== undefined ? settings.lowEndMode : autoDetect
     const performanceMonitorEnabled = settings.performanceMonitorEnabled ?? false
     const highContrast = settings.highContrast ?? false
-    const theme = settings.theme ?? 'light'
+    
+    // Force light mode as default (override any old dark mode settings)
+    const theme = settings.theme === 'dark' ? 'dark' : 'light'
 
     store.update((state) => ({
       ...state,
@@ -43,15 +45,17 @@ function createSessionStore() {
       highContrast,
       theme,
     }))
+    
     if (highContrast) {
       document.body.classList.add('high-contrast')
     } else {
       document.body.classList.remove('high-contrast')
     }
+    
+    // Remove dark-mode class by default, only add if explicitly set to dark
+    document.body.classList.remove('dark-mode')
     if (theme === 'dark') {
       document.body.classList.add('dark-mode')
-    } else {
-      document.body.classList.remove('dark-mode')
     }
   }
 

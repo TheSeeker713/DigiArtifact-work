@@ -1,11 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
-  import { db } from '../data/db'
-  import { getRunningTasks } from '../repos/activeTasksRepo'
+  import { activeTasksRepo } from '../repos/activeTasksRepo'
   import { jobsTasksStore } from '../stores/jobsTasksStore'
   import { toastError, toastSuccess, toastInfo } from '../stores/toastStore'
   import { loadAllTimeLogs } from '../services/timeLogsService'
-  import { timeLogsStore } from '../stores/timeLogsStore'
   import type { ActiveTaskRecord } from '../types/entities'
   import JobTaskSelector from './forms/JobTaskSelector.svelte'
 
@@ -27,11 +25,21 @@
   let completionNote = ''
   let completionBillable = true
 
-  function formatElapsedTime(startTime: number): string {
-    const elapsed = Math.floor((Date.now() - startTime) / 1000)
-    const hours = Math.floor(elapsed / 3600)
-    const minutes = Math.floor((elapsed % 3600) / 60)
-    const seconds = elapsed % 60
+  function formatElapsedTime(startTime: string, elapsedMinutes: number, isRunning: boolean): string {
+    const startMs = new Date(startTime).getTime()
+    const baseMs = elapsedMinutes * 60000
+    
+    let totalSeconds: number
+    if (isRunning) {
+      const now = Date.now()
+      totalSeconds = Math.floor((now - startMs + baseMs) / 1000)
+    } else {
+      totalSeconds = Math.floor(baseMs / 1000)
+    }
+    
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
   }
 
@@ -42,7 +50,8 @@
 
   async function loadRunningTasks() {
     try {
-      runningTasks = await getRunningTasks()
+      const tasks = await activeTasksRepo.getRunningTasks()
+      runningTasks = tasks || []
     } catch (error) {
       console.error('Failed to load running tasks:', error)
     }
@@ -66,23 +75,18 @@
 
     loading = true
     try {
-      const now = Date.now()
-      const newTask: ActiveTaskRecord = {
-        id: crypto.randomUUID(),
+      const newTask: Partial<ActiveTaskRecord> = {
         jobId: newTaskJobId,
-        taskId: newTaskTaskId ?? null,
+        taskId: newTaskTaskId ?? undefined,
         taskName: newTaskName.trim(),
-        startTime: now,
+        startTime: new Date().toISOString(),
         status: 'running',
         elapsedMinutes: 0,
         billable: newTaskBillable,
-        deleted: false,
-        _createdAt: now,
-        _modifiedAt: now,
       }
 
-      await db.put('active_tasks', newTask)
-      runningTasks = [...runningTasks, newTask]
+      const created = await activeTasksRepo.create(newTask as any)
+      runningTasks = [...runningTasks, created]
 
       // Reset form
       newTaskJobId = null
@@ -91,7 +95,7 @@
       newTaskBillable = true
       showNewTaskForm = false
 
-      toastSuccess(`Started tracking: ${newTask.taskName}`)
+      toastSuccess(`Started tracking: ${created.taskName}`)
     } catch (error) {
       console.error('Failed to start task:', error)
       toastError('Failed to start task. Please try again.')
@@ -104,16 +108,16 @@
     loading = true
     try {
       const now = Date.now()
-      const elapsed = Math.floor((now - task.startTime) / 60000)
+      const startMs = new Date(task.startTime).getTime()
+      const additionalMinutes = Math.floor((now - startMs) / 60000)
 
-      const updated: ActiveTaskRecord = {
-        ...task,
+      await activeTasksRepo.update(task.id, {
         status: 'paused',
-        elapsedMinutes: task.elapsedMinutes + elapsed,
-      }
+        elapsedMinutes: task.elapsedMinutes + additionalMinutes,
+        startTime: new Date().toISOString(), // Reset start time for when it resumes
+      })
 
-      await db.put('active_tasks', updated)
-      runningTasks = runningTasks.map((t) => (t.id === task.id ? updated : t))
+      await loadRunningTasks()
       toastInfo(`Paused: ${task.taskName}`)
     } catch (error) {
       console.error('Failed to pause task:', error)
@@ -126,15 +130,12 @@
   async function resumeTask(task: ActiveTaskRecord) {
     loading = true
     try {
-      const now = Date.now()
-      const updated: ActiveTaskRecord = {
-        ...task,
+      await activeTasksRepo.update(task.id, {
         status: 'running',
-        startTime: now,
-      }
+        startTime: new Date().toISOString(),
+      })
 
-      await db.put('active_tasks', updated)
-      runningTasks = runningTasks.map((t) => (t.id === task.id ? updated : t))
+      await loadRunningTasks()
       toastInfo(`Resumed: ${task.taskName}`)
     } catch (error) {
       console.error('Failed to resume task:', error)
@@ -161,20 +162,21 @@
 
     loading = true
     try {
-      const now = Date.now()
       const task = completingTask
+      const now = Date.now()
 
       // Calculate total time
       let totalMinutes = task.elapsedMinutes
       if (task.status === 'running') {
-        totalMinutes += Math.floor((now - task.startTime) / 60000)
+        const startMs = new Date(task.startTime).getTime()
+        totalMinutes += Math.floor((now - startMs) / 60000)
       }
 
-      // Save to time logs
-      const startedAt = new Date(task.startTime - task.elapsedMinutes * 60000).toISOString()
+      // Calculate start and end times
       const endedAt = new Date(now).toISOString()
+      const startedAt = new Date(now - totalMinutes * 60000).toISOString()
 
-      // Import createTimerLog and use it properly
+      // Save to time logs
       const { createTimerLog } = await import('../services/timeLogsService')
       await createTimerLog({
         jobId: task.jobId,
@@ -189,15 +191,9 @@
       // Reload time logs to update the store
       await loadAllTimeLogs()
 
-      // Mark task as completed and deleted
-      const updated: ActiveTaskRecord = {
-        ...task,
-        status: 'completed',
-        elapsedMinutes: totalMinutes,
-        deleted: true,
-      }
+      // Soft delete the task
+      await activeTasksRepo.softDelete(task.id)
 
-      await db.put('active_tasks', updated)
       runningTasks = runningTasks.filter((t) => t.id !== task.id)
 
       toastSuccess(`Completed: ${task.taskName} (${totalMinutes} min)`)
@@ -225,12 +221,7 @@
 
     loading = true
     try {
-      const updated: ActiveTaskRecord = {
-        ...task,
-        deleted: true,
-      }
-
-      await db.put('active_tasks', updated)
+      await activeTasksRepo.softDelete(task.id)
       runningTasks = runningTasks.filter((t) => t.id !== task.id)
       toastSuccess(`Deleted: ${task.taskName}`)
     } catch (error) {
@@ -349,11 +340,7 @@
 
           <div class="text-center py-2">
             <p class="font-mono text-3xl font-bold text-slate-50">
-              {#if task.status === 'running'}
-                {formatElapsedTime(task.startTime)}
-              {:else}
-                {formatElapsedTime(task.startTime - task.elapsedMinutes * 60000)}
-              {/if}
+              {formatElapsedTime(task.startTime, task.elapsedMinutes, task.status === 'running')}
             </p>
             <p class="text-xs text-slate-400 mt-1">
               {task.billable ? 'Billable' : 'Non-billable'}
@@ -401,6 +388,7 @@
 
 <!-- Task Completion Modal -->
 {#if completingTask}
+  {@const totalMins = completingTask.elapsedMinutes + (completingTask.status === 'running' ? Math.floor((Date.now() - new Date(completingTask.startTime).getTime()) / 60000) : 0)}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
     <div class="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-6 space-y-4">
       <header>
@@ -426,14 +414,7 @@
 
         <div class="text-sm text-slate-300">
           <p>
-            Total Time:{' '}
-            <span class="font-semibold">
-              {completingTask.elapsedMinutes +
-                (completingTask.status === 'running'
-                  ? Math.floor((Date.now() - completingTask.startTime) / 60000)
-                  : 0)}{' '}
-              minutes
-            </span>
+            Total Time: <span class="font-semibold">{totalMins} minutes</span>
           </p>
         </div>
       </div>

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
-  import { db } from '../data/db'
-  import { getActiveSession } from '../repos/workSessionsRepo'
+  import { workSessionsRepo } from '../repos/workSessionsRepo'
   import type { WorkSessionRecord } from '../types/entities'
 
   let activeSession: WorkSessionRecord | null = null
@@ -13,7 +12,8 @@
   function updateElapsedTime() {
     if (activeSession && activeSession.clockInTime) {
       const now = Date.now()
-      const elapsed = Math.floor((now - activeSession.clockInTime) / 1000)
+      const clockIn = new Date(activeSession.clockInTime).getTime()
+      const elapsed = Math.floor((now - clockIn) / 1000)
       elapsedTime = elapsed
     }
   }
@@ -28,7 +28,7 @@
 
   async function loadActiveSession() {
     try {
-      const session = await getActiveSession()
+      const session = await workSessionsRepo.getActiveSession()
       activeSession = session ?? null
       if (activeSession) {
         updateElapsedTime()
@@ -41,20 +41,15 @@
   async function clockIn() {
     loading = true
     try {
-      const now = Date.now()
-      const newSession: WorkSessionRecord = {
-        id: crypto.randomUUID(),
-        clockInTime: now,
+      const newSession: Partial<WorkSessionRecord> = {
+        clockInTime: new Date().toISOString(),
         clockOutTime: null,
         status: 'active',
-        totalMinutes: null,
-        deleted: false,
-        _createdAt: now,
-        _modifiedAt: now,
+        totalMinutes: undefined,
       }
 
-      await db.put('work_sessions', newSession)
-      activeSession = newSession
+      const created = await workSessionsRepo.create(newSession as any)
+      activeSession = created
       elapsedTime = 0
 
       // Start interval
@@ -76,17 +71,15 @@
     loading = true
     try {
       const now = Date.now()
-      const totalMinutes = Math.floor((now - activeSession.clockInTime) / 60000)
+      const clockIn = new Date(activeSession.clockInTime).getTime()
+      const totalMinutes = Math.floor((now - clockIn) / 60000)
 
-      const updated: WorkSessionRecord = {
-        ...activeSession,
-        clockOutTime: now,
+      await workSessionsRepo.update(activeSession.id, {
+        clockOutTime: new Date().toISOString(),
         status: 'completed',
         totalMinutes,
-        _modifiedAt: now,
-      }
+      })
 
-      await db.put('work_sessions', updated)
       activeSession = null
       elapsedTime = 0
 
