@@ -4,6 +4,7 @@
   import type { ProductSaleRecord } from '../types/entities'
 
   export let sales: ProductSaleRecord[] = []
+  export let lowEndMode = false
 
   let chartContainer: HTMLDivElement
   let chart: uPlot | null = null
@@ -48,13 +49,14 @@
       legend: {
         show: false,
       },
+      cursor: lowEndMode ? undefined : {},
       series: [
         {},
         {
           label: 'Net Revenue',
           stroke: '#10b981',
           width: 2,
-          points: { show: true, size: 5 },
+          points: { show: !lowEndMode, size: 5 },
         },
       ],
       axes: [

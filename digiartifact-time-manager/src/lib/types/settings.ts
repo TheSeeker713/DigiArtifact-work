@@ -5,6 +5,8 @@ export type Settings = {
   weekStart: string
   weekTargetHours: number
   jobTargets: Record<string, number>
+  lowEndMode?: boolean
+  performanceMonitorEnabled?: boolean
 }
 
 export const defaultSettings: Settings = {
@@ -12,4 +14,6 @@ export const defaultSettings: Settings = {
   weekStart: WEEK_START,
   weekTargetHours: WEEK_TARGET_HOURS,
   jobTargets: { ...JOB_TARGETS },
+  lowEndMode: undefined, // auto-detect if undefined
+  performanceMonitorEnabled: false,
 }

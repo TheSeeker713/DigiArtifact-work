@@ -11,6 +11,7 @@
   import { jobsRepo } from '../lib/repos/jobsRepo'
   import type { ReportResult } from '../lib/types/reports'
   import { computeReports, exportData } from '../lib/services/reportsWorkerService'
+  import { sessionStore } from '../lib/stores/sessionStore'
 
   let loading = false
   let products: ProductRecord[] = []
@@ -28,6 +29,8 @@
   // Results
   let result: ReportResult | null = null
   let computing = false
+
+  $: lowEndMode = $sessionStore.lowEndMode
 
   onMount(async () => {
     await loadData()
@@ -243,11 +246,11 @@
         </article>
       {/if}
       <article class="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-        <ProductSalesBarChart {products} sales={productSales} />
+        <ProductSalesBarChart {products} sales={productSales} {lowEndMode} />
       </article>
 
       <article class="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-        <Last30DaysNetChart sales={productSales} />
+        <Last30DaysNetChart sales={productSales} {lowEndMode} />
       </article>
 
       <article class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">

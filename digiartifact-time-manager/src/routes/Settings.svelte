@@ -7,6 +7,7 @@
     settingsStore,
     type Settings,
   } from '../lib/stores/settingsStore'
+  import { sessionStore } from '../lib/stores/sessionStore'
   import { jobsTasksStore } from '../lib/stores/jobsTasksStore'
   import { resetJobsAndTasks } from '../lib/services/jobsTasksService'
   import { toastError, toastInfo, toastSuccess } from '../lib/stores/toastStore'
@@ -24,8 +25,17 @@
     event.preventDefault()
     const sanitized = sanitizeForm(form)
     settingsStore.set(sanitized)
-  eventBus.emit('settings:updated', undefined as void)
+    eventBus.emit('settings:updated', undefined as void)
     form = cloneSettingsSnapshot(sanitized)
+    
+    // Sync lowEndMode and performanceMonitor to sessionStore
+    if (typeof sanitized.lowEndMode === 'boolean') {
+      sessionStore.setLowEndMode(sanitized.lowEndMode)
+    }
+    if (typeof sanitized.performanceMonitorEnabled === 'boolean') {
+      sessionStore.setPerformanceMonitor(sanitized.performanceMonitorEnabled)
+    }
+
     saveState = 'saved'
     setTimeout(() => {
       saveState = 'idle'
@@ -83,6 +93,8 @@
           ? Number(settings.weekTargetHours)
           : defaultSettings.weekTargetHours,
       jobTargets: Object.keys(jobTargets).length ? jobTargets : { ...defaultSettings.jobTargets },
+      lowEndMode: typeof settings.lowEndMode === 'boolean' ? settings.lowEndMode : defaultSettings.lowEndMode,
+      performanceMonitorEnabled: typeof settings.performanceMonitorEnabled === 'boolean' ? settings.performanceMonitorEnabled : defaultSettings.performanceMonitorEnabled,
     }
   }
 
@@ -141,6 +153,22 @@
           required
         />
       </label>
+    </fieldset>
+
+    <fieldset class="space-y-4">
+      <legend class="text-sm font-semibold uppercase tracking-wide text-slate-400">
+        Performance & Low-End
+      </legend>
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="flex items-center gap-3 text-sm text-slate-200">
+          <input type="checkbox" class="h-4 w-4" bind:checked={form.lowEndMode} />
+          <span>Enable low-end mode (disables chart animations, reduces shadows)</span>
+        </label>
+        <label class="flex items-center gap-3 text-sm text-slate-200">
+          <input type="checkbox" class="h-4 w-4" bind:checked={form.performanceMonitorEnabled} />
+          <span>Show performance monitor (dev tool)</span>
+        </label>
+      </div>
     </fieldset>
 
     <fieldset class="space-y-4">

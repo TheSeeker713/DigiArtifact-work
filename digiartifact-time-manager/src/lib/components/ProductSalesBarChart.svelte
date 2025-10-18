@@ -5,6 +5,7 @@
 
   export let products: ProductRecord[] = []
   export let sales: ProductSaleRecord[] = []
+  export let lowEndMode = false
 
   let chartContainer: HTMLDivElement
   let chart: uPlot | null = null
@@ -58,12 +59,13 @@
       legend: {
         show: false,
       },
+      cursor: lowEndMode ? undefined : {},
       series: [
         {},
         {
           label: 'Net Revenue',
           stroke: '#10b981',
-          fill: 'rgba(16, 185, 129, 0.1)',
+          fill: lowEndMode ? undefined : 'rgba(16, 185, 129, 0.1)',
           points: { show: false },
         },
       ],

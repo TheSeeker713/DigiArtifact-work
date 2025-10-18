@@ -15,6 +15,7 @@
     lowEndMode: false,
     isLoading: false,
     lastSyncedAt: null,
+    performanceMonitorEnabled: false,
   }
 
   const dispatch = createEventDispatcher()

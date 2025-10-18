@@ -43,6 +43,8 @@ function normalizeSettings(candidate: unknown): Settings {
         ? Number(value.weekTargetHours)
         : defaultSettings.weekTargetHours,
     jobTargets: sanitizeJobTargets(value.jobTargets, defaultSettings.jobTargets),
+    lowEndMode: typeof value.lowEndMode === 'boolean' ? value.lowEndMode : defaultSettings.lowEndMode,
+    performanceMonitorEnabled: typeof value.performanceMonitorEnabled === 'boolean' ? value.performanceMonitorEnabled : defaultSettings.performanceMonitorEnabled,
   }
 }
 
@@ -52,6 +54,8 @@ export function cloneSettings(settings: Settings): Settings {
     weekStart: settings.weekStart,
     weekTargetHours: settings.weekTargetHours,
     jobTargets: { ...settings.jobTargets },
+    lowEndMode: settings.lowEndMode,
+    performanceMonitorEnabled: settings.performanceMonitorEnabled,
   }
 }
 
