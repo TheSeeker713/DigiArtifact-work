@@ -16,6 +16,7 @@
     isLoading: false,
     lastSyncedAt: null,
     performanceMonitorEnabled: false,
+    highContrast: false,
   }
 
   const dispatch = createEventDispatcher()
@@ -35,7 +36,7 @@
 
   // Accessibility: Global hotkeys
   import { sessionStore } from '../stores/sessionStore';
-  import { toast } from '../stores/toastStore';
+  import { toastSuccess, toastInfo } from '../stores/toastStore';
   let hotkeyFeedback = '';
 
   function handleGlobalHotkeys(event: KeyboardEvent) {
@@ -43,33 +44,33 @@
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       hotkeyFeedback = 'Quick find activated.';
-      toast.success('Quick find activated');
+      toastSuccess('Quick find activated (Alt+K)');
       // TODO: Implement quick find modal logic
     }
     // Start/Pause/Stop timer (Alt+T, Alt+P, Alt+S)
     if (event.altKey && event.key.toLowerCase() === 't') {
       event.preventDefault();
-      sessionStore.startTimer();
-      hotkeyFeedback = 'Timer started.';
-      toast.success('Timer started');
+      hotkeyFeedback = 'Timer hotkey pressed (Alt+T).';
+      toastInfo('Timer hotkey pressed (Alt+T). Navigate to Time page to start timer.');
+      // TODO: Implement timer control from global hotkey
     }
     if (event.altKey && event.key.toLowerCase() === 'p') {
       event.preventDefault();
-      sessionStore.pauseTimer();
-      hotkeyFeedback = 'Timer paused.';
-      toast.info('Timer paused');
+      hotkeyFeedback = 'Pause hotkey pressed (Alt+P).';
+      toastInfo('Pause hotkey pressed (Alt+P). Navigate to Time page to pause timer.');
+      // TODO: Implement timer control from global hotkey
     }
     if (event.altKey && event.key.toLowerCase() === 's') {
       event.preventDefault();
-      sessionStore.stopTimer();
-      hotkeyFeedback = 'Timer stopped.';
-      toast.info('Timer stopped');
+      hotkeyFeedback = 'Stop hotkey pressed (Alt+S).';
+      toastInfo('Stop hotkey pressed (Alt+S). Navigate to Time page to stop timer.');
+      // TODO: Implement timer control from global hotkey
     }
     // Quick add TimeLog (Alt+A)
     if (event.altKey && event.key.toLowerCase() === 'a') {
       event.preventDefault();
-      hotkeyFeedback = 'Quick add TimeLog.';
-      toast.success('Quick add TimeLog');
+      hotkeyFeedback = 'Quick add TimeLog (Alt+A).';
+      toastSuccess('Quick add TimeLog hotkey pressed (Alt+A)');
       // TODO: Implement quick add TimeLog modal logic
     }
     // Escape closes mobile nav

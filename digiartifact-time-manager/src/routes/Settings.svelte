@@ -12,12 +12,17 @@
   import { resetJobsAndTasks } from '../lib/services/jobsTasksService'
   import { toastError, toastInfo, toastSuccess } from '../lib/stores/toastStore'
   import { eventBus } from '../lib/events/eventBus'
+  import { generateTestData, loadTestDataToRepos } from '../lib/data/generateTestData'
 
   type SaveState = 'idle' | 'saved'
 
   let form: Settings = cloneSettingsSnapshot(get(settingsStore))
   let saveState: SaveState = 'idle'
   let resettingJobs = false
+  let loadingTestData = false
+
+  // Dev-only flag (can be toggled in browser console: window.__DEV_MODE__ = true)
+  const isDev = typeof window !== 'undefined' && (window as any).__DEV_MODE__ === true
 
   $: jobKeys = Object.keys(form.jobTargets)
 
@@ -73,6 +78,28 @@
       toastError('Could not reset jobs and tasks. Please retry.')
     } finally {
       resettingJobs = false
+    }
+  }
+
+  async function handleLoadTestData() {
+    const confirmed = confirm(
+      'Load demo data? This will generate 5k TimeLogs, 300 Clients, 500 Deals, 400 Invoices, 600 Payments, 1k Activities. This may take a minute.',
+    )
+    if (!confirmed) return
+
+    loadingTestData = true
+    toastInfo('Generating test data...')
+    
+    try {
+      const data = await generateTestData()
+      toastInfo('Loading test data into database...')
+      await loadTestDataToRepos(data)
+      toastSuccess('Test data loaded successfully! Refresh the page to see the data.')
+    } catch (error) {
+      toastError('Failed to load test data')
+      console.error(error)
+    } finally {
+      loadingTestData = false
     }
   }
 
@@ -166,7 +193,7 @@
             bind:checked={form.highContrast}
             aria-checked={form.highContrast}
             aria-label="Enable high-contrast theme"
-            on:change={() => sessionStore.setHighContrast(form.highContrast)}
+            on:change={() => sessionStore.setHighContrast(form.highContrast ?? false)}
           />
           <span>High-contrast theme</span>
         </label>
@@ -222,6 +249,26 @@
       {/if}
     </div>
   </form>
+
+  {#if isDev}
+    <article class="space-y-4 rounded-xl border border-blue-900/60 bg-blue-950/30 p-6 text-sm">
+      <header class="space-y-1">
+        <h3 class="text-lg font-semibold text-blue-200">Load Demo Data (Dev Only)</h3>
+        <p class="text-xs text-blue-300/80">
+          Generate realistic test data for performance testing: 5k TimeLogs, 300 Clients, 500 Deals, 400 Invoices, 600 Payments, 1k Activities.
+          This operation takes ~30-60 seconds and directly writes to IndexedDB.
+        </p>
+      </header>
+      <button
+        type="button"
+        class="rounded-lg border border-blue-700 bg-blue-900/40 px-4 py-2 text-sm font-semibold text-blue-100 hover:bg-blue-900/60 disabled:opacity-60"
+        on:click={handleLoadTestData}
+        disabled={loadingTestData}
+      >
+        {loadingTestData ? 'Loading test data…' : 'Load Demo Data'}
+      </button>
+    </article>
+  {/if}
 
   <article class="space-y-4 rounded-xl border border-rose-900/60 bg-rose-950/30 p-6 text-sm">
     <header class="space-y-1">
