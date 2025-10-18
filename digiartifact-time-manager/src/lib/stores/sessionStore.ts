@@ -3,10 +3,11 @@ import { detectLowEndDevice } from '../utils/detectLowEnd'
 import { settingsStore } from './settingsStore'
 
 export type SessionState = {
-  lowEndMode: boolean
-  isLoading: boolean
-  lastSyncedAt?: string | null
-  performanceMonitorEnabled: boolean
+  lowEndMode: boolean;
+  isLoading: boolean;
+  lastSyncedAt?: string | null;
+  performanceMonitorEnabled: boolean;
+  highContrast: boolean;
 }
 
 const initialState: SessionState = {
@@ -14,6 +15,7 @@ const initialState: SessionState = {
   isLoading: false,
   lastSyncedAt: null,
   performanceMonitorEnabled: false,
+  highContrast: false,
 }
 
 function createSessionStore() {
@@ -29,12 +31,19 @@ function createSessionStore() {
     const autoDetect = detectLowEndDevice()
     const lowEndMode = settings.lowEndMode !== undefined ? settings.lowEndMode : autoDetect
     const performanceMonitorEnabled = settings.performanceMonitorEnabled ?? false
+    const highContrast = settings.highContrast ?? false
 
     store.update((state) => ({
       ...state,
       lowEndMode,
       performanceMonitorEnabled,
+      highContrast,
     }))
+    if (highContrast) {
+      document.body.classList.add('high-contrast')
+    } else {
+      document.body.classList.remove('high-contrast')
+    }
   }
 
   // Call initialize after a tick to ensure settingsStore is hydrated
@@ -48,6 +57,15 @@ function createSessionStore() {
       store.update((state) => ({ ...state, lowEndMode: enabled }))
       // Persist to settings
       settingsStore.update((s) => ({ ...s, lowEndMode: enabled }))
+    },
+    setHighContrast(enabled: boolean) {
+      store.update((state) => ({ ...state, highContrast: enabled }))
+      settingsStore.update((s) => ({ ...s, highContrast: enabled }))
+      if (enabled) {
+        document.body.classList.add('high-contrast')
+      } else {
+        document.body.classList.remove('high-contrast')
+      }
     },
     setLoading(isLoading: boolean) {
       store.update((state) => ({ ...state, isLoading }))

@@ -465,16 +465,17 @@
         </div>
 
         <label class="flex flex-col gap-2 text-sm text-slate-200">
-          <span class="font-semibold text-slate-100">Notes (optional)</span>
+          <span class="font-semibold text-slate-100" id="manual-note-label">Notes (optional)</span>
           <textarea
             class="min-h-[90px] rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100"
             bind:value={manualNote}
             placeholder="What happened during this block?"
+            aria-labelledby="manual-note-label"
           ></textarea>
         </label>
 
         <label class="flex items-center gap-2 text-xs text-slate-300">
-          <input type="checkbox" bind:checked={manualBillable} />
+          <input type="checkbox" bind:checked={manualBillable} aria-checked={manualBillable} aria-label="Billable session" />
           Billable session
         </label>
 

@@ -33,14 +33,53 @@
     mobileNavOpen = !mobileNavOpen
   }
 
-  function handleKeyClose(event: KeyboardEvent) {
+  // Accessibility: Global hotkeys
+  import { sessionStore } from '../stores/sessionStore';
+  import { toast } from '../stores/toastStore';
+  let hotkeyFeedback = '';
+
+  function handleGlobalHotkeys(event: KeyboardEvent) {
+    // Quick find (Ctrl/Cmd+K)
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      hotkeyFeedback = 'Quick find activated.';
+      toast.success('Quick find activated');
+      // TODO: Implement quick find modal logic
+    }
+    // Start/Pause/Stop timer (Alt+T, Alt+P, Alt+S)
+    if (event.altKey && event.key.toLowerCase() === 't') {
+      event.preventDefault();
+      sessionStore.startTimer();
+      hotkeyFeedback = 'Timer started.';
+      toast.success('Timer started');
+    }
+    if (event.altKey && event.key.toLowerCase() === 'p') {
+      event.preventDefault();
+      sessionStore.pauseTimer();
+      hotkeyFeedback = 'Timer paused.';
+      toast.info('Timer paused');
+    }
+    if (event.altKey && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      sessionStore.stopTimer();
+      hotkeyFeedback = 'Timer stopped.';
+      toast.info('Timer stopped');
+    }
+    // Quick add TimeLog (Alt+A)
+    if (event.altKey && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      hotkeyFeedback = 'Quick add TimeLog.';
+      toast.success('Quick add TimeLog');
+      // TODO: Implement quick add TimeLog modal logic
+    }
+    // Escape closes mobile nav
     if (event.key === 'Escape') {
-      mobileNavOpen = false
+      mobileNavOpen = false;
     }
   }
 </script>
 
-<svelte:window on:keydown={handleKeyClose} />
+<svelte:window on:keydown={handleGlobalHotkeys} />
 
 <div class="relative flex min-h-screen bg-slate-950 text-slate-100">
   <aside
@@ -73,11 +112,12 @@
               <li>
                 <button
                   type="button"
-                  class={`w-full rounded-lg border border-transparent px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary ${
+                  class={`w-full rounded-lg border border-transparent px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
                     item.key === currentRoute
                       ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/60'
                       : 'text-slate-200 hover:bg-slate-800'
                   }`}
+                  tabindex="0"
                   on:click={() => handleNavigate(item.key)}
                   aria-current={item.key === currentRoute ? 'page' : undefined}
                 >
@@ -93,6 +133,8 @@
   </aside>
 
   <div class="flex flex-1 flex-col">
+    <!-- ARIA live region for hotkey feedback -->
+    <div aria-live="polite" aria-atomic="true" class="sr-only">{hotkeyFeedback}</div>
     <header class="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-800 bg-slate-950/80 px-4 py-3 backdrop-blur md:px-8">
       <div class="flex items-center gap-2">
         <button

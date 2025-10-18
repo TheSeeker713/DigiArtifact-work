@@ -45,6 +45,7 @@ function normalizeSettings(candidate: unknown): Settings {
     jobTargets: sanitizeJobTargets(value.jobTargets, defaultSettings.jobTargets),
     lowEndMode: typeof value.lowEndMode === 'boolean' ? value.lowEndMode : defaultSettings.lowEndMode,
     performanceMonitorEnabled: typeof value.performanceMonitorEnabled === 'boolean' ? value.performanceMonitorEnabled : defaultSettings.performanceMonitorEnabled,
+    highContrast: typeof value.highContrast === 'boolean' ? value.highContrast : defaultSettings.highContrast,
   }
 }
 
@@ -56,6 +57,7 @@ export function cloneSettings(settings: Settings): Settings {
     jobTargets: { ...settings.jobTargets },
     lowEndMode: settings.lowEndMode,
     performanceMonitorEnabled: settings.performanceMonitorEnabled,
+    highContrast: settings.highContrast,
   }
 }
 

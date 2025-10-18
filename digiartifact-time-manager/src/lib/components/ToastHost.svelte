@@ -18,13 +18,17 @@
         class={`pointer-events-auto w-full rounded-xl border px-4 py-3 shadow-lg backdrop-blur transition ${toneClasses[toast.tone]}`}
         role="status"
         aria-live="polite"
+        aria-atomic="true"
+        aria-label={toast.tone === 'error' ? 'Error notification' : toast.tone === 'success' ? 'Success notification' : 'Notification'}
         transition:scale={{ duration: 120 }}
       >
         <div class="flex items-start gap-3">
           <div class="flex-1 text-sm">{toast.message}</div>
           <button
             type="button"
-            class="text-xs font-semibold uppercase tracking-wide text-slate-300 hover:text-slate-50"
+            class="text-xs font-semibold uppercase tracking-wide text-slate-300 hover:text-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+            aria-label="Close notification"
+            tabindex="0"
             on:click={() => dismissToast(toast.id)}
           >
             Close

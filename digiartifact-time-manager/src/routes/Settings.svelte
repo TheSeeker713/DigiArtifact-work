@@ -161,6 +161,16 @@
       </legend>
       <div class="grid gap-3 md:grid-cols-2">
         <label class="flex items-center gap-3 text-sm text-slate-200">
+          <input
+            type="checkbox"
+            bind:checked={form.highContrast}
+            aria-checked={form.highContrast}
+            aria-label="Enable high-contrast theme"
+            on:change={() => sessionStore.setHighContrast(form.highContrast)}
+          />
+          <span>High-contrast theme</span>
+        </label>
+        <label class="flex items-center gap-3 text-sm text-slate-200">
           <input type="checkbox" class="h-4 w-4" bind:checked={form.lowEndMode} />
           <span>Enable low-end mode (disables chart animations, reduces shadows)</span>
         </label>

@@ -1,3 +1,24 @@
+/* High-contrast theme overrides */
+.high-contrast {
+  --brand-primary: #fff200;
+  --bg-main: #000;
+  --text-main: #fff;
+  --border-main: #fff200;
+  background-color: var(--bg-main) !important;
+  color: var(--text-main) !important;
+}
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  background: #000 !important;
+  color: #fff !important;
+  border-color: #fff200 !important;
+  outline: 2px solid #fff200 !important;
+}
+.high-contrast .focus-visible {
+  outline: 2px solid #fff200 !important;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
