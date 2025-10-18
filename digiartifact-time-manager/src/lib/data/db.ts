@@ -19,10 +19,12 @@ import type {
   SettingRecord,
   TaskRecord,
   TimeLogRecord,
+  WorkSessionRecord,
+  ActiveTaskRecord,
 } from '../types/entities'
 
 export const DB_NAME = 'datm'
-export const DB_VERSION = 1
+export const DB_VERSION = 2
 
 export type EntityStore =
   | 'people'
@@ -41,6 +43,8 @@ export type EntityStore =
   | 'product_sales'
   | 'activities'
   | 'form_submissions'
+  | 'work_sessions'
+  | 'active_tasks'
   | 'settings'
   | 'audit'
 
@@ -134,6 +138,16 @@ export interface DatmDB extends DBSchema {
     key: string
     value: FormSubmissionRecord
     indexes: { by_source: string; by_deleted: string }
+  }
+  work_sessions: {
+    key: string
+    value: WorkSessionRecord
+    indexes: { by_status: string; by_deleted: string }
+  }
+  active_tasks: {
+    key: string
+    value: ActiveTaskRecord
+    indexes: { by_job: string; by_status: string; by_deleted: string }
   }
   settings: {
     key: string
@@ -231,6 +245,15 @@ export function getDB() {
           formStore.createIndex('by_source', 'source', { unique: false })
           formStore.createIndex('by_deleted', 'deletedAt', { unique: false })
 
+          const workSessionStore = db.createObjectStore('work_sessions', defaultOptions)
+          workSessionStore.createIndex('by_status', 'status', { unique: false })
+          workSessionStore.createIndex('by_deleted', 'deletedAt', { unique: false })
+
+          const activeTasksStore = db.createObjectStore('active_tasks', defaultOptions)
+          activeTasksStore.createIndex('by_job', 'jobId', { unique: false })
+          activeTasksStore.createIndex('by_status', 'status', { unique: false })
+          activeTasksStore.createIndex('by_deleted', 'deletedAt', { unique: false })
+
           const settingsStore = db.createObjectStore('settings', defaultOptions)
           settingsStore.createIndex('by_key', 'key', { unique: true })
 
@@ -248,4 +271,27 @@ export function getDB() {
 export async function withDb<T>(callback: (db: IDBPDatabase<DatmDB>) => Promise<T>) {
   const db = await getDB()
   return callback(db)
+}
+
+// Helper functions for common operations
+export const db = {
+  async get<T extends EntityStore>(store: T, key: string) {
+    return withDb((db) => db.get(store, key))
+  },
+  async put<T extends EntityStore>(store: T, value: DatmDB[T]['value']) {
+    return withDb((db) => db.put(store, value))
+  },
+  async delete<T extends EntityStore>(store: T, key: string) {
+    return withDb((db) => db.delete(store, key))
+  },
+  async getAll<T extends EntityStore>(store: T) {
+    return withDb((db) => db.getAll(store))
+  },
+  async getAllFromIndex<T extends EntityStore>(
+    store: T,
+    indexName: string,
+    query?: IDBKeyRange | string,
+  ) {
+    return withDb((db) => db.getAllFromIndex(store, indexName as any, query as any))
+  },
 }

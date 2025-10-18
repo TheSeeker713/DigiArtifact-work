@@ -3,6 +3,7 @@
   import type { AlignedData, Options } from 'uplot'
 
   import LazyUplot from '../lib/components/charts/LazyUplot.svelte'
+  import ClockInOut from '../lib/components/ClockInOut.svelte'
   import {
     fetchEightWeekHours,
     fetchRevenueByMonth,
@@ -173,12 +174,14 @@
 
 <section class="space-y-6">
   <header class="space-y-2">
-    <h2 class="text-2xl font-semibold text-brand-primary">Weekly Overview</h2>
+    <h2 class="text-2xl font-semibold text-brand-primary">Dashboard</h2>
     <p class="text-sm text-slate-400">
-      Track logged hours against the 60/20/20 cadence. Charts stream from IndexedDB data so nothing
-      relies on the network.
+      Track your work session, logged hours, and project metrics. All data streams from IndexedDB.
     </p>
   </header>
+
+  <!-- Clock In/Out Widget -->
+  <ClockInOut />
 
   <div class="grid gap-4 md:grid-cols-2">
     <article class="space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-5">

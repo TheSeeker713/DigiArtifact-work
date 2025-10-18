@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte'
 
   import JobTaskSelector from '../lib/components/forms/JobTaskSelector.svelte'
+  import MultiTaskTracker from '../lib/components/MultiTaskTracker.svelte'
   import {
     createManualLog,
     createTimerLog,
@@ -341,10 +342,12 @@
   <header class="space-y-2">
     <h2 class="text-2xl font-semibold text-brand-primary">Time Tracking</h2>
     <p class="text-sm text-slate-400">
-      Run a precise timer backed by <code>performance.now()</code>, add manual entries with overlap
-      guards, and manage historical logs without leaving the offline shell.
+      Track multiple tasks simultaneously, run precise timers, add manual entries, and manage historical logs.
     </p>
   </header>
+
+  <!-- Multi-Task Tracker -->
+  <MultiTaskTracker />
 
   <div class="grid gap-6 lg:grid-cols-2">
     <article class="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-6">

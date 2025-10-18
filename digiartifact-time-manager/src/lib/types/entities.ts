@@ -152,6 +152,33 @@ export type FormSubmissionRecord = BaseRecord & {
   consent: boolean
 }
 
+export type WorkSessionRecord = {
+  id: string
+  clockInTime: number
+  clockOutTime: number | null
+  status: 'active' | 'completed'
+  totalMinutes: number | null
+  note?: string
+  deleted: boolean
+  _createdAt: number
+  _modifiedAt: number
+}
+
+export type ActiveTaskRecord = {
+  id: string
+  jobId: string
+  taskId: string | null
+  taskName: string
+  startTime: number
+  status: 'running' | 'paused' | 'stopped' | 'completed'
+  elapsedMinutes: number
+  billable: boolean
+  note?: string
+  deleted: boolean
+  _createdAt: number
+  _modifiedAt: number
+}
+
 export type SettingRecord = BaseRecord & {
   key: string
   value: unknown
