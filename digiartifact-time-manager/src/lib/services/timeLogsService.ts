@@ -106,6 +106,7 @@ export async function createTimerLog(input: TimerLogInput): Promise<TimeLogRecor
     note: input.note?.trim() ? input.note.trim() : undefined,
     billable: input.billable ?? true,
     weekBucket,
+    approved: true,
   } as any)
 
   timeLogsStore.upsert(record)
@@ -143,6 +144,7 @@ export async function createManualLog(input: ManualLogInput): Promise<TimeLogRec
     note: input.note?.trim() ? input.note.trim() : undefined,
     billable: input.billable ?? true,
     weekBucket,
+    approved: true,
   } as any)
 
   timeLogsStore.upsert(record)

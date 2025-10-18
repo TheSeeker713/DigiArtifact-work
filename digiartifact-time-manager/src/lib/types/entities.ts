@@ -67,6 +67,8 @@ export type TimeLogRecord = BaseRecord & {
   note?: string
   billable: boolean
   weekBucket: string
+  approved?: boolean
+  invoiceId?: string
 }
 
 export type ScheduleRecord = BaseRecord & {
@@ -80,11 +82,12 @@ export type InvoiceRecord = BaseRecord & {
   clientId: string
   issueDate: ISODate
   dueDate: ISODate
-  status: 'draft' | 'sent' | 'paid' | 'overdue'
+  status: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue'
   subtotal: number
   tax: number
   total: number
   currency: string
+  notes?: string
 }
 
 export type InvoiceItemRecord = BaseRecord & {
