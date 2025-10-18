@@ -212,9 +212,9 @@
       <section class="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-300">Select a module to load its view.</section>
     {/if}
 
-    <aside class="rounded-xl border border-teal-800/60 bg-teal-900/30 p-6 text-sm text-teal-100">
-      <h2 class="text-lg font-semibold text-teal-100">Offline-first guarantee</h2>
-      <p class="mt-2">
+    <aside class="rounded-xl border border-teal-500/40 bg-teal-50/80 p-6 text-sm text-teal-900">
+      <h2 class="text-lg font-semibold text-teal-800">Offline-first guarantee</h2>
+      <p class="mt-2 text-teal-700">
         IndexedDB mirrors every record locally; GitHub release builds ship installers so creators can
         run the manager without connectivity or GPU resources.
       </p>

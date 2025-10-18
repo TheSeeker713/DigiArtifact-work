@@ -167,6 +167,28 @@ body {
   color: rgb(2 132 199) !important; /* sky-600 - deep blue, very readable */
 }
 
+/* Teal info card colors - high contrast in light mode */
+.text-teal-900 {
+  color: rgb(19 78 74) !important; /* very dark teal */
+}
+
+.text-teal-800 {
+  color: rgb(17 94 89) !important; /* dark teal */
+}
+
+.text-teal-700 {
+  color: rgb(15 118 110) !important; /* medium-dark teal */
+}
+
+.bg-teal-50\/80 {
+  background: rgba(240, 253, 250, 0.85) !important; /* very light teal with glass effect */
+  backdrop-filter: blur(12px) !important;
+}
+
+.border-teal-500\/40 {
+  border-color: rgba(20, 184, 166, 0.4) !important; /* teal border */
+}
+
 /* ===================================================================
    DARK MODE OVERRIDES
    Restore original dark colors when .dark-mode class is present
@@ -210,6 +232,22 @@ body.dark-mode .rounded-lg.border {
 /* Info/warning text - lighter blue in dark mode */
 body.dark-mode .text-sky-600 {
   color: rgb(125 211 252) !important; /* sky-300 - light blue for dark backgrounds */
+}
+
+/* Teal info card - restore dark teal colors in dark mode */
+body.dark-mode .text-teal-900,
+body.dark-mode .text-teal-800,
+body.dark-mode .text-teal-700 {
+  color: rgb(153 246 228) !important; /* teal-200 - light teal for dark backgrounds */
+}
+
+body.dark-mode .bg-teal-50\/80 {
+  background: rgba(19, 78, 74, 0.3) !important; /* dark teal background */
+  backdrop-filter: none !important;
+}
+
+body.dark-mode .border-teal-500\/40 {
+  border-color: rgba(20, 184, 166, 0.6) !important; /* brighter teal border in dark mode */
 }
 
 /* Backgrounds - DARK (solid, no glass) in dark mode */
