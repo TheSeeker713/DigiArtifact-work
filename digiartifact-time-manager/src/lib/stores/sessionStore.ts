@@ -52,9 +52,11 @@ function createSessionStore() {
       document.body.classList.remove('high-contrast')
     }
     
-    // Remove dark-mode class by default, only add if explicitly set to dark
-    document.body.classList.remove('dark-mode')
+    // Remove both dark-mode and dark classes by default, only add if explicitly set to dark
+    document.documentElement.classList.remove('dark', 'dark-mode')
+    document.body.classList.remove('dark', 'dark-mode')
     if (theme === 'dark') {
+      document.documentElement.classList.add('dark')
       document.body.classList.add('dark-mode')
     }
   }
@@ -83,10 +85,15 @@ function createSessionStore() {
     setTheme(theme: 'light' | 'dark') {
       store.update((state) => ({ ...state, theme }))
       settingsStore.update((s) => ({ ...s, theme }))
+      
+      // Remove both classes first
+      document.documentElement.classList.remove('dark', 'dark-mode')
+      document.body.classList.remove('dark', 'dark-mode')
+      
+      // Add both if dark mode
       if (theme === 'dark') {
+        document.documentElement.classList.add('dark')
         document.body.classList.add('dark-mode')
-      } else {
-        document.body.classList.remove('dark-mode')
       }
     },
     setLoading(isLoading: boolean) {
