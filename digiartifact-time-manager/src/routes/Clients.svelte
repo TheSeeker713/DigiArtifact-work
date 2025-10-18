@@ -14,6 +14,7 @@
     type ClientSummary,
   } from '../lib/stores/clientsStore'
   import { toastError, toastInfo, toastSuccess } from '../lib/stores/toastStore'
+  import ProfitabilityWidget from '../lib/components/ProfitabilityWidget.svelte'
   import type { ActivityRecord, ClientRecord, ContactRecord } from '../lib/types/entities'
 
   const tabs = ['Contacts', 'Deals', 'Invoices', 'Payments', 'Activities', 'Notes'] as const
@@ -795,6 +796,8 @@
             </button>
           {/if}
         </article>
+
+        <ProfitabilityWidget clientId={selectedDetail.client.id} defaultRate={75} />
 
         <nav class="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
           {#each tabs as tab}

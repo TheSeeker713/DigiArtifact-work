@@ -5,6 +5,7 @@
   import { tasksRepo } from '../lib/repos/tasksRepo'
   import { jobsTasksStore } from '../lib/stores/jobsTasksStore'
   import { toastError, toastSuccess, toastInfo } from '../lib/stores/toastStore'
+  import ProfitabilityWidget from '../lib/components/ProfitabilityWidget.svelte'
   import type { JobRecord, TaskRecord } from '../lib/types/entities'
 
   type JobDraft = { title: string; description: string }
@@ -494,6 +495,10 @@
                 {creatingTask[job.id] ? 'Adding…' : 'Add task'}
               </button>
             </div>
+          </section>
+
+          <section class="mt-4">
+            <ProfitabilityWidget jobId={job.id} defaultRate={job.rate ?? 0} />
           </section>
         </article>
       {/each}
