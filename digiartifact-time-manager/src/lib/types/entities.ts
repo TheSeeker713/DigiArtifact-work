@@ -38,6 +38,9 @@ export type DealRecord = BaseRecord & {
   valueEstimate?: number
   probability?: number
   jobType?: string
+  jobId?: string
+  tags?: string[]
+  stageChangedAt?: ISODate
 }
 
 export type JobRecord = BaseRecord & {

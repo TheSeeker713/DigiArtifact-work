@@ -14,3 +14,4 @@
 | 0.0.09 | Introduced weekly aggregates utilities, ISO week helpers, and selectors for dashboard/report consumption. |
 | 0.0.10 | Delivered the analytics dashboard with progress cards and lazy-loaded uPlot charts honoring low-end mode. |
 | 0.0.11 | Rolled out the Clients mini-CRM with searchable list, AR badges, detail tabs, contact/activity CRUD, and notes editing. |
+| 0.0.12 | Shipped the deals pipeline board with drag-and-drop stages, weighted totals, deal editing, and job linkage. |
