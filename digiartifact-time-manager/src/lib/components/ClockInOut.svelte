@@ -7,6 +7,9 @@
   import { recomputeWeekAggregates } from '../services/statsAggregationService'
   import { toastStore } from '../stores/toastStore'
   import { offlineQueueStore } from '../stores/offlineQueueStore'
+  import { statsStore } from '../stores/statsStore'
+  import { settingsStore } from '../stores/settingsStore'
+  import { getWeekLabel } from '../utils/timeBuckets'
 
   // FIX 9: Subscribe to global work session store instead of local state
   $: activeSession = $workSessionStore.activeSession
@@ -23,7 +26,7 @@
   let break_ms_accum = 0 // Accumulated break time in milliseconds
   let break_started_at: number | null = null // Date.now() when break started, null when not on break
 
-  // Update elapsed time every second when clocked in
+  // FIX 12: Real-time sync - Update elapsed time AND statsStore every second
   function updateElapsedTime() {
     if (activeSession && start_wallclock !== null) {
       const now = Date.now()
@@ -39,6 +42,17 @@
       } else {
         breakTime = 0
       }
+
+      // FIX 12: CRITICAL - Sync Work Session "Total Time" with "Hours This Week" in real-time
+      // Calculate net work minutes (excluding breaks)
+      const work_ms = Math.max(0, elapsed_ms - break_ms_accum - (break_started_at ? (now - break_started_at) : 0))
+      const workMinutes = Math.round(work_ms / 60000)
+      
+      // Update statsStore with live minutes so "Hours This Week" matches "Total Time"
+      const settings = $settingsStore
+      const weekBucket = getWeekLabel(activeSession.clockInTime, settings.timezone, settings.weekStart as any)
+      const targetMinutes = settings.weekTargetHours * 60
+      statsStore.updateLiveMinutes(weekBucket, workMinutes, targetMinutes)
     }
   }
 

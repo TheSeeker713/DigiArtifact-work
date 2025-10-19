@@ -123,6 +123,26 @@ function createStatsStore() {
     reset() {
       store.set({ ...initialState })
     },
+    /**
+     * Real-time update for active session minutes
+     * Updates weekly totals with current running session time
+     */
+    updateLiveMinutes(weekBucket: string, liveMinutes: number, targetMinutes: number) {
+      store.update((state) => {
+        const weekly = {
+          weekBucket,
+          totalMinutes: liveMinutes,
+          targetMinutes,
+        }
+
+        return {
+          ...state,
+          weekly,
+          weeklyTotalHours: minutesToHours(liveMinutes),
+          lastUpdated: new Date().toISOString(),
+        }
+      })
+    },
   }
 }
 
