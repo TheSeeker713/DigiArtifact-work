@@ -167,16 +167,21 @@ export async function generateTestData(): Promise<GeneratedTestData> {
 
     timeLogs.push({
       id: randomId(),
+      personId: 'owner', // Default person_id
       jobId: job.id,
+      taskId: null,
       startDT,
       endDT,
       durationMinutes,
+      breakMs: 0, // Test data has no breaks
       note: `Demo time log ${i + 1}`,
       billable: Math.random() > 0.2, // 80% billable
       weekBucket: getWeekBucket(startDT),
       approved: Math.random() > 0.1, // 90% approved
+      invoiceId: null,
       createdAt: startDT,
       updatedAt: startDT,
+      deletedAt: null,
     })
   }
 

@@ -61,8 +61,8 @@
 
   async function loadActiveTasks() {
     try {
-      const tasks = await activeTasksRepo.getActiveTasks()
-      activeTasks = tasks.filter(t => t.status === 'running')
+      const tasks = await activeTasksRepo.getRunningTasks()
+      activeTasks = tasks
     } catch (error) {
       console.error('[LiveStatus] Failed to load active tasks:', error)
     }

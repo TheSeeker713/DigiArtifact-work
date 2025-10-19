@@ -3,7 +3,7 @@ import { get } from 'svelte/store'
 import { eventBus } from '../events/eventBus'
 import { settingsStore } from '../stores/settingsStore'
 import { statsStore } from '../stores/statsStore'
-import { initializeTimeLogStats } from './timeLogsService'
+import { initializeStats } from './statsAggregationService'
 import { getCurrentWeekBucket } from '../utils/time'
 
 let bootstrapped = false
@@ -11,7 +11,8 @@ let bootstrapped = false
 export async function initStatsAggregator() {
   if (bootstrapped) return
 
-  await initializeTimeLogStats()
+  // FIX 4: Use cached stats initialization
+  await initializeStats()
 
   const unsubscribe = eventBus.on('settings:updated', () => {
     const settings = get(settingsStore)

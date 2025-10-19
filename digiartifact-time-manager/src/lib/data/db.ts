@@ -24,7 +24,7 @@ import type {
 } from '../types/entities'
 
 export const DB_NAME = 'datm'
-export const DB_VERSION = 2
+export const DB_VERSION = 3
 
 export type EntityStore =
   | 'people'
@@ -87,6 +87,7 @@ export interface DatmDB extends DBSchema {
       by_week: string
       by_job_week: [string, string]
       by_person: string
+      by_person_start: [string, string]
       by_deleted: string
     }
   }
@@ -166,7 +167,7 @@ let dbPromise: Promise<IDBPDatabase<DatmDB>> | null = null
 export function getDB() {
   if (!dbPromise) {
     dbPromise = openDB<DatmDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
+      upgrade(db, oldVersion, newVersion, transaction) {
         if (oldVersion < 1) {
           const defaultOptions = { keyPath: 'id' }
 
@@ -260,6 +261,15 @@ export function getDB() {
           const auditStore = db.createObjectStore('audit', defaultOptions)
           auditStore.createIndex('by_entity', 'entity', { unique: false })
           auditStore.createIndex('by_entity_action', ['entity', 'action'], { unique: false })
+        }
+
+        // Version 3: Add compound index on timelogs for person_id + start_dt
+        if (oldVersion < 3 && oldVersion >= 1) {
+          const timelogStore = transaction.objectStore('timelogs')
+          if (!timelogStore.indexNames.contains('by_person_start')) {
+            timelogStore.createIndex('by_person_start', ['personId', 'startDT'], { unique: false })
+            console.log('[DB Migration v3] Created by_person_start compound index on timelogs')
+          }
         }
       },
     })

@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte'
   import { workSessionsRepo } from '../repos/workSessionsRepo'
   import type { WorkSessionRecord, BreakPeriod } from '../types/entities'
+  import { debugLog } from '../utils/debug'
 
   let activeSession: WorkSessionRecord | null = null
   let elapsedTime = 0
@@ -10,19 +11,27 @@
   let intervalId: number | null = null
   let loading = false
 
+  // Timer state for accurate time tracking
+  let start_hrtime: number | null = null // performance.now() for high-resolution timing
+  let start_wallclock: number | null = null // Date.now() for absolute time
+  let break_ms_accum = 0 // Accumulated break time in milliseconds
+  let break_started_at: number | null = null // Date.now() when break started, null when not on break
+
   // Update elapsed time every second when clocked in
   function updateElapsedTime() {
-    if (activeSession && activeSession.clockInTime) {
+    if (activeSession && start_wallclock !== null) {
       const now = Date.now()
-      const clockIn = new Date(activeSession.clockInTime).getTime()
-      const elapsed = Math.floor((now - clockIn) / 1000)
-      elapsedTime = elapsed
+      
+      // Calculate total elapsed time
+      const elapsed_ms = now - start_wallclock
+      elapsedTime = Math.floor(elapsed_ms / 1000)
 
       // Update break time if on break
-      if (activeSession.status === 'on_break' && currentBreak && currentBreak.startTime) {
-        const breakStart = new Date(currentBreak.startTime).getTime()
-        const breakElapsed = Math.floor((now - breakStart) / 1000)
-        breakTime = breakElapsed
+      if (activeSession.status === 'on_break' && break_started_at !== null) {
+        const current_break_ms = now - break_started_at
+        breakTime = Math.floor(current_break_ms / 1000)
+      } else {
+        breakTime = 0
       }
     }
   }
@@ -43,24 +52,61 @@
       
       activeSession = session ?? null
       if (activeSession) {
+        // Initialize timer state from session
+        start_wallclock = new Date(activeSession.clockInTime).getTime()
+        start_hrtime = performance.now() - (Date.now() - start_wallclock)
+        break_ms_accum = (activeSession.totalBreakMinutes || 0) * 60000
+        
         currentBreak = workSessionsRepo.getCurrentBreak(activeSession)
+        if (currentBreak && currentBreak.startTime) {
+          break_started_at = new Date(currentBreak.startTime).getTime()
+        } else {
+          break_started_at = null
+        }
+        
         updateElapsedTime()
         console.log('[ClockInOut] Resumed active session, elapsed time:', elapsedTime, 'seconds')
         console.log('[ClockInOut] Current break:', currentBreak)
+        console.log('[ClockInOut] Timer state:', { start_wallclock, break_ms_accum, break_started_at })
       } else {
         console.log('[ClockInOut] No active session found')
+        resetTimerState()
       }
     } catch (error) {
       console.error('[ClockInOut] Failed to load active session:', error)
     }
   }
 
+  function resetTimerState() {
+    start_hrtime = null
+    start_wallclock = null
+    break_ms_accum = 0
+    break_started_at = null
+  }
+
   async function clockIn() {
     loading = true
     try {
+      // Initialize timer state with both high-resolution and wall clock time
+      start_hrtime = performance.now()
+      start_wallclock = Date.now()
+      break_ms_accum = 0
+      break_started_at = null
+      
+      const startTime = new Date(start_wallclock).toISOString()
+      
+      debugLog.time.info('Clock In initiated', {
+        start_ts: start_wallclock,
+        start_hrtime,
+        start_time: startTime,
+        job_id: null, // Future: link to active job
+        task_id: null, // Future: link to active task
+        timer_id: null, // Future: if using timer system
+      })
+      
       console.log('[ClockInOut] Clock In initiated')
       const newSession: Partial<WorkSessionRecord> = {
-        clockInTime: new Date().toISOString(),
+        clockInTime: startTime,
         clockOutTime: null,
         status: 'active',
         totalMinutes: undefined,
@@ -71,6 +117,12 @@
       console.log('[ClockInOut] Creating session:', newSession)
       const created = await workSessionsRepo.create(newSession as any)
       console.log('[ClockInOut] Session created successfully:', created)
+      
+      debugLog.time.info('Clock In complete', {
+        session_id: created.id,
+        created_at: created.createdAt,
+        timer_state: { start_hrtime, start_wallclock, break_ms_accum, break_started_at }
+      })
       
       activeSession = created
       elapsedTime = 0
@@ -85,24 +137,70 @@
       
       console.log('[ClockInOut] Clock In complete, timer started')
     } catch (error) {
+      debugLog.time.error('Clock In failed', { error })
       console.error('[ClockInOut] Failed to clock in:', error)
       alert('Failed to clock in. Please try again.')
+      resetTimerState()
     } finally {
       loading = false
     }
   }
 
   async function clockOut() {
-    if (!activeSession) return
+    if (!activeSession || start_wallclock === null) return
 
     loading = true
     try {
       console.log('[ClockInOut] Clock Out initiated for session:', activeSession.id)
       const now = Date.now()
-      const clockIn = new Date(activeSession.clockInTime).getTime()
-      const totalMinutes = Math.floor((now - clockIn) / 60000)
-      const totalBreakMinutes = activeSession.totalBreakMinutes || 0
-      const netMinutes = Math.max(0, totalMinutes - totalBreakMinutes)
+      
+      // Close active break first if exists
+      if (break_started_at !== null) {
+        const current_break_ms = now - break_started_at
+        break_ms_accum += current_break_ms
+        debugLog.time.info('Clock Out: closing active break', {
+          session_id: activeSession.id,
+          current_break_ms,
+          new_break_ms_accum: break_ms_accum
+        })
+      }
+      
+      // Compute durations using new timer math
+      const end_ts = now
+      const elapsed_ms = now - start_wallclock
+      const work_ms = Math.max(0, elapsed_ms - break_ms_accum)
+      let totalMinutes = Math.round(work_ms / 60000)
+      
+      // Guard against NaN/negative values
+      if (isNaN(totalMinutes) || totalMinutes < 0) {
+        debugLog.time.warn('Clock Out: NaN or negative duration detected', {
+          totalMinutes,
+          elapsed_ms,
+          break_ms: break_ms_accum,
+          work_ms
+        })
+        totalMinutes = 0
+      }
+      
+      const totalBreakMinutes = Math.round(break_ms_accum / 60000)
+      const netMinutes = totalMinutes // work_ms already excludes breaks
+
+      debugLog.time.info('Clock Out initiated', {
+        session_id: activeSession.id,
+        end_ts,
+        end_time: new Date(end_ts).toISOString(),
+        start_wallclock,
+        start_time: new Date(start_wallclock).toISOString(),
+        elapsed_ms,
+        break_ms: break_ms_accum,
+        work_ms,
+        computed_duration_min: totalMinutes,
+        break_duration_min: totalBreakMinutes,
+        net_duration_min: netMinutes,
+        had_active_break: break_started_at !== null,
+        breaks_count: activeSession.breaks?.length || 0,
+        timer_state: { start_hrtime, start_wallclock, break_ms_accum, break_started_at }
+      })
 
       console.log('[ClockInOut] Clocked in at:', activeSession.clockInTime)
       console.log('[ClockInOut] Clocking out at:', new Date().toISOString())
@@ -122,7 +220,20 @@
       // Verify the data was saved
       const savedSession = await workSessionsRepo.getById(activeSession.id)
       console.log('[ClockInOut] Verified saved session:', savedSession)
+      
+      debugLog.time.info('Clock Out complete - saved session verified', {
+        session_id: savedSession?.id,
+        clock_in: savedSession?.clockInTime,
+        clock_out: savedSession?.clockOutTime,
+        total_minutes: savedSession?.totalMinutes,
+        break_minutes: savedSession?.totalBreakMinutes,
+        net_minutes: savedSession?.netMinutes,
+        status: savedSession?.status,
+        breaks_count: savedSession?.breaks?.length || 0,
+      })
 
+      // Reset timer state
+      resetTimerState()
       activeSession = null
       elapsedTime = 0
       breakTime = 0
@@ -136,6 +247,7 @@
       
       console.log('[ClockInOut] Clock Out complete')
     } catch (error) {
+      debugLog.time.error('Clock Out failed', { error })
       console.error('[ClockInOut] Failed to clock out:', error)
       alert('Failed to clock out. Please try again.')
     } finally {
@@ -144,38 +256,95 @@
   }
 
   async function startBreak() {
-    if (!activeSession) return
+    if (!activeSession || start_wallclock === null) return
     
     loading = true
     try {
+      // Record when break started
+      break_started_at = Date.now()
+      
+      debugLog.time.info('Take Break initiated', {
+        event: 'break_start',
+        session_id: activeSession.id,
+        now: break_started_at,
+        now_time: new Date(break_started_at).toISOString(),
+        accumulated_break_ms: break_ms_accum,
+        previous_breaks_count: activeSession.breaks?.length || 0,
+        timer_state: { start_wallclock, break_ms_accum, break_started_at }
+      })
+      
       console.log('[ClockInOut] Starting break')
       const updated = await workSessionsRepo.startBreak(activeSession.id)
       activeSession = updated
       currentBreak = workSessionsRepo.getCurrentBreak(updated)
       breakTime = 0
+      
+      debugLog.time.info('Take Break complete', {
+        session_id: updated.id,
+        break_id: currentBreak?.id,
+        status: updated.status,
+      })
+      
       console.log('[ClockInOut] Break started successfully')
     } catch (error) {
+      debugLog.time.error('Take Break failed', { error })
       console.error('[ClockInOut] Failed to start break:', error)
       alert('Failed to start break. Please try again.')
+      break_started_at = null
     } finally {
       loading = false
     }
   }
 
   async function endBreak() {
-    if (!activeSession) return
+    if (!activeSession || break_started_at === null) return
     
     loading = true
     try {
+      const now = Date.now()
+      
+      // Add this break's duration to accumulated break time
+      const current_break_ms = now - break_started_at
+      break_ms_accum += current_break_ms
+      
+      debugLog.time.info('Resume Work initiated', {
+        event: 'break_end',
+        session_id: activeSession.id,
+        now,
+        now_time: new Date(now).toISOString(),
+        current_break_ms,
+        accumulated_break_ms: break_ms_accum,
+        break_id: currentBreak?.id,
+        timer_state: { start_wallclock, break_ms_accum, break_started_at }
+      })
+      
       console.log('[ClockInOut] Ending break')
       const updated = await workSessionsRepo.endBreak(activeSession.id)
       activeSession = updated
       currentBreak = null
       breakTime = 0
+      
+      // Clear break_started_at since we're no longer on break
+      break_started_at = null
+      
+      debugLog.time.info('Resume Work complete', {
+        session_id: updated.id,
+        status: updated.status,
+        total_break_minutes: updated.totalBreakMinutes,
+        breaks_count: updated.breaks?.length || 0,
+        new_break_ms_accum: break_ms_accum
+      })
+      
       console.log('[ClockInOut] Break ended successfully')
     } catch (error) {
+      debugLog.time.error('Resume Work failed', { error })
       console.error('[ClockInOut] Failed to end break:', error)
       alert('Failed to end break. Please try again.')
+      // Rollback the break accumulation on error
+      if (break_started_at !== null) {
+        const current_break_ms = Date.now() - break_started_at
+        break_ms_accum -= current_break_ms
+      }
     } finally {
       loading = false
     }

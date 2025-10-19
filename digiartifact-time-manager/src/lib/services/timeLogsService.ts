@@ -8,6 +8,7 @@ import { settingsStore } from '../stores/settingsStore'
 import { timeLogsStore } from '../stores/timeLogsStore'
 import { eventBus } from '../events/eventBus'
 import { formatWeekBucket, getCurrentWeekBucket } from '../utils/time'
+import { onTimeLogChanged } from './statsAggregationService'
 
 const DEFAULT_PERSON_ID = 'self'
 
@@ -103,15 +104,20 @@ export async function createTimerLog(input: TimerLogInput): Promise<TimeLogRecor
     startDT: input.startedAt,
     endDT: input.endedAt,
     durationMinutes: coerceDurationMinutes(input.durationMinutes),
-    note: input.note?.trim() ? input.note.trim() : undefined,
+    breakMs: 0, // Timer logs don't track breaks (work sessions do)
+    note: input.note?.trim() ? input.note.trim() : null,
     billable: input.billable ?? true,
     weekBucket,
     approved: true,
-  } as any)
+  })
 
   timeLogsStore.upsert(record)
   const targetMinutes = deriveTargetMinutes()
   applyAggregateDelta(weekBucket, record.jobId, record.durationMinutes, targetMinutes, shouldAffectWeekly(weekBucket))
+  
+  // FIX 4: Incremental aggregation hook
+  await onTimeLogChanged('create', record)
+  
   eventBus.emit('timelog:created', {
     id: record.id,
     jobId: record.jobId,
@@ -141,15 +147,20 @@ export async function createManualLog(input: ManualLogInput): Promise<TimeLogRec
     startDT: startIso,
     endDT: endIso,
     durationMinutes,
-    note: input.note?.trim() ? input.note.trim() : undefined,
+    breakMs: 0, // Manual logs don't track breaks
+    note: input.note?.trim() ? input.note.trim() : null,
     billable: input.billable ?? true,
     weekBucket,
     approved: true,
-  } as any)
+  })
 
   timeLogsStore.upsert(record)
   const targetMinutes = deriveTargetMinutes()
   applyAggregateDelta(weekBucket, record.jobId, record.durationMinutes, targetMinutes, shouldAffectWeekly(weekBucket))
+  
+  // FIX 4: Incremental aggregation hook
+  await onTimeLogChanged('create', record)
+  
   eventBus.emit('timelog:created', {
     id: record.id,
     jobId: record.jobId,
@@ -170,6 +181,10 @@ export async function updateTimeLogNote(id: string, note: string | null) {
   } as any)
 
   timeLogsStore.upsert(updated)
+  
+  // FIX 4: Incremental aggregation hook (note changes don't affect aggregates, but call for consistency)
+  await onTimeLogChanged('update', updated, existing)
+  
   eventBus.emit('timelog:updated', {
     id: updated.id,
     jobId: updated.jobId,
@@ -194,6 +209,9 @@ export async function deleteTimeLog(id: string) {
     targetMinutes,
     shouldAffectWeekly(existing.weekBucket),
   )
+  
+  // FIX 4: Incremental aggregation hook
+  await onTimeLogChanged('delete', existing)
 
   eventBus.emit('timelog:deleted', { id })
 }

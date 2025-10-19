@@ -58,17 +58,18 @@ export type TaskRecord = BaseRecord & {
 }
 
 export type TimeLogRecord = BaseRecord & {
-  personId?: string
+  personId: string
   jobId: string
-  taskId?: string
+  taskId?: string | null
   startDT: ISODate
   endDT: ISODate
   durationMinutes: number
-  note?: string
+  breakMs: number
+  note?: string | null
   billable: boolean
   weekBucket: string
   approved?: boolean
-  invoiceId?: string
+  invoiceId?: string | null
 }
 
 export type ScheduleRecord = BaseRecord & {
