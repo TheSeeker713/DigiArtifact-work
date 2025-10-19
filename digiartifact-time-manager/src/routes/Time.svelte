@@ -85,7 +85,10 @@
   }
 
   function tick() {
-    if (!timerRunning || timerPaused) return
+    if (!timerRunning || timerPaused) {
+      console.log('[Timer] tick() called but timer not running or paused', { timerRunning, timerPaused })
+      return
+    }
     elapsedMs = accumulatedMs + (performance.now() - startPerf)
     rafHandle = requestAnimationFrame(tick)
   }
@@ -96,6 +99,7 @@
   }
 
   function resetTimerState() {
+    console.log('[Timer] Resetting timer state')
     cancelAnimation()
     timerRunning = false
     timerPaused = false
@@ -123,6 +127,7 @@
     timerRunning = true
     timerPaused = false
     elapsedMs = accumulatedMs
+    console.log('[Timer] Starting timer', { startedAtIso, startPerf, timerRunning, timerPaused })
     rafHandle = requestAnimationFrame(tick)
   }
 
@@ -182,6 +187,9 @@
   function handleTimerReset() {
     resetTimerState()
   }
+
+  // Reactive declaration to ensure UI updates with elapsedMs changes
+  $: displayedDuration = formatDurationMs(elapsedMs)
 
   function computeManualDurationMinutes() {
     if (!manualDate || !manualStart || !manualEnd) return 0
@@ -334,8 +342,6 @@
   $: if (!filterJobId && filterTaskId) {
     filterTaskId = null
   }
-
-  const displayedDuration = () => formatDurationMs(elapsedMs)
 </script>
 
 <section class="space-y-8">
@@ -353,7 +359,7 @@
     <article class="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-6">
       <header class="flex items-center justify-between">
         <h3 class="text-lg font-semibold text-slate-100">Live Timer</h3>
-        <span class="font-mono text-3xl text-slate-50">{displayedDuration()}</span>
+        <span class="font-mono text-3xl text-slate-50">{displayedDuration}</span>
       </header>
 
       <JobTaskSelector
