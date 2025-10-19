@@ -13,6 +13,7 @@
   import { toastError, toastInfo, toastSuccess } from '../lib/stores/toastStore'
   import { eventBus } from '../lib/events/eventBus'
   import { generateTestData, loadTestDataToRepos } from '../lib/data/generateTestData'
+  import { backfillWeeklyTotals } from '../lib/services/statsAggregationService'
 
   type SaveState = 'idle' | 'saved'
 
@@ -20,6 +21,8 @@
   let saveState: SaveState = 'idle'
   let resettingJobs = false
   let loadingTestData = false
+  let backfilling = false
+  let backfillProgress = { current: 0, total: 0, weekBucket: '' }
 
   // Dev-only flag (can be toggled in browser console: window.__DEV_MODE__ = true)
   const isDev = typeof window !== 'undefined' && (window as any).__DEV_MODE__ === true
@@ -100,6 +103,51 @@
       console.error(error)
     } finally {
       loadingTestData = false
+    }
+  }
+
+  async function handleBackfillWeeklyTotals() {
+    const confirmed = confirm(
+      'Backfill weekly totals for the last 8 weeks? This will recompute all aggregates from TimeLogs and may take 10-30 seconds.',
+    )
+    if (!confirmed) return
+
+    backfilling = true
+    backfillProgress = { current: 0, total: 8, weekBucket: '' }
+    toastInfo('Starting backfill for last 8 weeks...')
+
+    try {
+      const result = await backfillWeeklyTotals(8, (progress) => {
+        backfillProgress = progress
+      })
+
+      // Show success with summary
+      const totalHours = result.results.reduce((sum, week) => sum + week.hours, 0)
+      const totalLogs = result.results.reduce((sum, week) => sum + week.logCount, 0)
+
+      toastSuccess(
+        `✅ Backfill complete! Processed ${result.successCount}/${result.totalWeeks} weeks: ${totalHours.toFixed(2)} hours from ${totalLogs} TimeLogs`
+      )
+
+      // Show detailed breakdown in console
+      console.table(result.results)
+
+      // Optional: Show top 3 weeks in toast
+      const topWeeks = result.results
+        .sort((a, b) => b.hours - a.hours)
+        .slice(0, 3)
+        .map(w => `${w.weekBucket}: ${w.hours.toFixed(1)}h`)
+        .join(', ')
+      
+      if (topWeeks) {
+        toastInfo(`Top weeks: ${topWeeks}`, 6000)
+      }
+    } catch (error) {
+      console.error('[Settings] Backfill failed:', error)
+      toastError(`Backfill failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      backfilling = false
+      backfillProgress = { current: 0, total: 0, weekBucket: '' }
     }
   }
 
@@ -298,6 +346,38 @@
       </button>
     </article>
   {/if}
+
+  <article class="space-y-4 rounded-xl border border-blue-900/60 bg-blue-950/30 p-6 text-sm">
+    <header class="space-y-1">
+      <h3 class="text-lg font-semibold text-blue-200">Backfill Weekly Totals</h3>
+      <p class="text-xs text-blue-300/80">
+        Recompute weekly aggregates for the last 8 weeks from TimeLogs. Use this to fix historical zeros,
+        validate data integrity, or refresh stats after bulk imports. Takes 10-30 seconds depending on log count.
+      </p>
+    </header>
+    {#if backfilling}
+      <div class="space-y-2">
+        <div class="flex items-center justify-between text-xs text-blue-200">
+          <span>Processing week {backfillProgress.current} of {backfillProgress.total}...</span>
+          <span class="font-mono">{backfillProgress.weekBucket}</span>
+        </div>
+        <div class="h-2 w-full rounded-lg bg-blue-900/40">
+          <div
+            class="h-2 rounded-lg bg-blue-400 transition-[width] duration-300"
+            style={`width: ${(backfillProgress.current / backfillProgress.total) * 100}%;`}
+          ></div>
+        </div>
+      </div>
+    {/if}
+    <button
+      type="button"
+      class="rounded-lg border border-blue-700 bg-blue-900/40 px-4 py-2 text-sm font-semibold text-blue-100 hover:bg-blue-900/60 disabled:opacity-60"
+      on:click={handleBackfillWeeklyTotals}
+      disabled={backfilling}
+    >
+      {backfilling ? 'Backfilling...' : 'Backfill Last 8 Weeks'}
+    </button>
+  </article>
 
   <article class="space-y-4 rounded-xl border border-rose-900/60 bg-rose-950/30 p-6 text-sm">
     <header class="space-y-1">

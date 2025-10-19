@@ -24,6 +24,7 @@ export type CachedStats = {
   }
   perJob: Record<string, number>
   lastUpdated: string
+  lastComputedAt?: string // Timestamp of last full recomputation
 }
 
 const STATS_CACHE_KEY = 'cached_stats_v1'
@@ -206,49 +207,60 @@ export async function initializeStats(force = false): Promise<void> {
 
 /**
  * Force recomputation of week aggregates for a specific person and week range
- * Used by Dashboard debug tools to validate aggregate accuracy
+ * Optimized to use by_week index for efficient queries
+ * Used by Dashboard debug tools and backfill operations
  */
 export async function recomputeWeekAggregates(params?: {
   personId?: string
   weekRange?: { startIso: string; endIso: string }
-}): Promise<{ weeklyTotalHours: number; perJobTotals: Record<string, number> }> {
+  weekBucket?: string
+}): Promise<{ 
+  weeklyTotalHours: number
+  perJobTotals: Record<string, number>
+  weekBucket: string
+  logCount: number
+}> {
   console.log('[StatsAggregator] Force recomputing week aggregates', params)
 
-  // Import timeLogsRepo to query TimeLogs
+  // Import dependencies
   const { timeLogsRepo } = await import('../repos/timeLogsRepo')
+  const { isInRange, getWeekLabel } = await import('../utils/timeBuckets')
   
-  // Get current week range if not provided
+  // Get current week range and bucket if not provided
+  const settings = get(settingsStore)
+  const weekStart = settings.weekStart || 'monday'
+  const tz = settings.timezone || 'America/New_York'
+  
   let startIso = params?.weekRange?.startIso
   let endIso = params?.weekRange?.endIso
+  let weekBucket = params?.weekBucket
   
-  if (!startIso || !endIso) {
-    const settings = get(settingsStore)
-    const weekStart = settings.weekStart || 'monday'
+  if (!startIso || !endIso || !weekBucket) {
     const { getCurrentWeekRange } = await import('../utils/timeBuckets')
-    const tz = settings.timezone || 'America/New_York'
     const range = getCurrentWeekRange(tz, weekStart as any)
     startIso = range.startIso
     endIso = range.endIso
+    weekBucket = range.weekLabel
   }
 
-  // Query all TimeLogs (list() returns non-deleted records)
-  const allLogs = await timeLogsRepo.list()
+  // OPTIMIZED: Use by_week index for O(log n) lookup
+  // This is much faster than filtering all logs O(n)
+  const logsInWeek = await timeLogsRepo.listByWeek(weekBucket)
   
-  // Filter to week range and optionally by personId
-  const { isInRange } = await import('../utils/timeBuckets')
-  const logsInWeek = allLogs.filter((log: import('../types/entities').TimeLogRecord) => {
+  // Filter by personId if specified, and validate range
+  const filteredLogs = logsInWeek.filter((log: import('../types/entities').TimeLogRecord) => {
     const inRange = isInRange(log.startDT, startIso!, endIso!)
     const matchesPerson = params?.personId ? log.personId === params.personId : true
     return inRange && matchesPerson
   })
 
-  console.log(`[StatsAggregator] Found ${logsInWeek.length} TimeLogs in week range`)
+  console.log(`[StatsAggregator] Found ${filteredLogs.length} TimeLogs in week ${weekBucket}`)
 
   // Compute totals
   let totalMinutes = 0
   const perJobTotals: Record<string, number> = {}
 
-  for (const log of logsInWeek) {
+  for (const log of filteredLogs) {
     totalMinutes += log.durationMinutes
     perJobTotals[log.jobId] = (perJobTotals[log.jobId] || 0) + log.durationMinutes
   }
@@ -259,37 +271,141 @@ export async function recomputeWeekAggregates(params?: {
     weeklyTotalHours,
     totalMinutes,
     perJobTotals,
-    logCount: logsInWeek.length,
+    logCount: filteredLogs.length,
+    weekBucket,
   })
 
-  // Update statsStore with recomputed values
-  const settings = get(settingsStore)
-  const targetMinutes = (settings.weekTargetHours || 40) * 60
-  const weekBucket = getCurrentWeek()
+  // Only update statsStore if this is the current week
+  const currentWeekBucket = getCurrentWeek()
+  if (weekBucket === currentWeekBucket) {
+    const targetMinutes = (settings.weekTargetHours || 40) * 60
 
-  statsStore.setSnapshot({
-    weekly: {
-      weekBucket,
-      totalMinutes,
-      targetMinutes,
-    },
-    perJob: perJobTotals,
-    lastUpdated: new Date().toISOString(),
-  })
+    statsStore.setSnapshot({
+      weekly: {
+        weekBucket,
+        totalMinutes,
+        targetMinutes,
+      },
+      perJob: perJobTotals,
+      lastUpdated: new Date().toISOString(),
+    })
 
-  // Persist to cache
-  await persistStatsCache({
-    weekly: {
-      weekBucket,
-      totalMinutes,
-      targetMinutes,
-    },
-    perJob: perJobTotals,
-    lastUpdated: new Date().toISOString(),
-  })
+    // Persist current week to cache
+    await persistStatsCache({
+      weekly: {
+        weekBucket,
+        totalMinutes,
+        targetMinutes,
+      },
+      perJob: perJobTotals,
+      lastUpdated: new Date().toISOString(),
+      lastComputedAt: new Date().toISOString(),
+    })
+  }
 
   return {
     weeklyTotalHours,
     perJobTotals,
+    weekBucket,
+    logCount: filteredLogs.length,
+  }
+}
+
+/**
+ * Backfill weekly aggregates for the last N weeks
+ * Useful for fixing historical zeros or validating data integrity
+ * 
+ * @param weeksBack - Number of weeks to backfill (default: 8)
+ * @param onProgress - Optional callback for progress updates
+ */
+export async function backfillWeeklyTotals(
+  weeksBack = 8,
+  onProgress?: (progress: { current: number; total: number; weekBucket: string }) => void
+): Promise<{
+  totalWeeks: number
+  successCount: number
+  results: Array<{
+    weekBucket: string
+    hours: number
+    logCount: number
+  }>
+}> {
+  console.log(`[StatsAggregator] Starting backfill for last ${weeksBack} weeks`)
+
+  const settings = get(settingsStore)
+  const weekStart = settings.weekStart || 'monday'
+  const tz = settings.timezone || 'America/New_York'
+
+  // Import utilities
+  const { weekRangeFor } = await import('../utils/timeBuckets')
+
+  // Generate week ranges for last N weeks
+  const weeks: Array<{ weekBucket: string; startIso: string; endIso: string }> = []
+  const now = new Date()
+
+  for (let i = 0; i < weeksBack; i++) {
+    const weekDate = new Date(now)
+    weekDate.setDate(weekDate.getDate() - i * 7)
+    
+    const range = weekRangeFor(weekDate.toISOString(), tz, weekStart as any)
+    weeks.push({
+      weekBucket: range.weekLabel,
+      startIso: range.startIso,
+      endIso: range.endIso,
+    })
+  }
+
+  console.log('[StatsAggregator] Backfilling weeks:', weeks.map(w => w.weekBucket))
+
+  // Recompute each week
+  const results: Array<{ weekBucket: string; hours: number; logCount: number }> = []
+  let successCount = 0
+
+  for (let i = 0; i < weeks.length; i++) {
+    const week = weeks[i]
+    
+    // Report progress
+    if (onProgress) {
+      onProgress({
+        current: i + 1,
+        total: weeks.length,
+        weekBucket: week.weekBucket,
+      })
+    }
+
+    try {
+      const result = await recomputeWeekAggregates({
+        weekRange: { startIso: week.startIso, endIso: week.endIso },
+        weekBucket: week.weekBucket,
+      })
+
+      results.push({
+        weekBucket: week.weekBucket,
+        hours: result.weeklyTotalHours,
+        logCount: result.logCount,
+      })
+      successCount++
+
+      console.log(`[StatsAggregator] Backfilled week ${week.weekBucket}: ${result.weeklyTotalHours}h from ${result.logCount} logs`)
+    } catch (error) {
+      console.error(`[StatsAggregator] Failed to backfill week ${week.weekBucket}:`, error)
+      results.push({
+        weekBucket: week.weekBucket,
+        hours: 0,
+        logCount: 0,
+      })
+    }
+  }
+
+  console.log('[StatsAggregator] Backfill complete:', {
+    totalWeeks: weeks.length,
+    successCount,
+    results,
+  })
+
+  return {
+    totalWeeks: weeks.length,
+    successCount,
+    results,
   }
 }
