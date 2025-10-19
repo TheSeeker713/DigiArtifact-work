@@ -257,6 +257,8 @@ export const debugControl = {
 
 // Make available globally for debugging in browser console
 if (typeof window !== 'undefined') {
-  (window as any).debugLog = debugLog
+  // Note: Skipping debugLog assignment due to TypeScript callable check
+  // Access via: window.debugControl.enable() or direct import instead
+  // (window as any).debugLog = debugLog
   (window as any).debugControl = debugControl
 }
