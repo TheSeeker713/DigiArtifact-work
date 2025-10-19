@@ -22,6 +22,7 @@
   import { sessionStore } from '../lib/stores/sessionStore'
   import { statsStore } from '../lib/stores/statsStore'
   import { initializeStats, recomputeWeekAggregates } from '../lib/services/statsAggregationService'
+  import { initializeWorkSession } from '../lib/services/workSessionInit'
   import { toastStore } from '../lib/stores/toastStore'
   import { debugLog } from '../lib/utils/debug'
 
@@ -200,6 +201,15 @@
   }
 
   onMount(async () => {
+    // FIX 9: Initialize work session store first
+    try {
+      await initializeWorkSession()
+      debugLog.ui.info('Dashboard: Work session initialized')
+    } catch (error) {
+      console.error('[Dashboard] Failed to initialize work session:', error)
+      // Non-blocking - user can still use the app
+    }
+    
     // Initialize stats from cache or recompute
     loadingStats = true
     try {

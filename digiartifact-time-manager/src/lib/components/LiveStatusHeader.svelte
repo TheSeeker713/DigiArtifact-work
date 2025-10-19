@@ -2,13 +2,22 @@
   import { onMount, onDestroy } from 'svelte'
   import { workSessionsRepo } from '../repos/workSessionsRepo'
   import { activeTasksRepo } from '../repos/activeTasksRepo'
-  import type { WorkSessionRecord, ActiveTaskRecord } from '../types/entities'
+  import type { ActiveTaskRecord } from '../types/entities'
+  import { workSessionStore } from '../stores/workSessionStore'
+  import { statsStore } from '../stores/statsStore'
 
-  let activeSession: WorkSessionRecord | null = null
+  // FIX 9: Subscribe to global work session store (single source of truth)
+  $: activeSession = $workSessionStore.activeSession
+  
   let activeTasks: ActiveTaskRecord[] = []
   let elapsedTime = 0
-  let totalTimeToday = 0
   let intervalId: number | null = null
+  
+  // FIX 9: Pull "Total Time Today" from statsStore (not recalculated)
+  // Note: statsStore currently tracks weekly, so we'll use a derived calculation
+  // This can be enhanced later to track daily stats in statsStore
+  $: weeklyMinutes = $statsStore.weekly.totalMinutes
+  $: weeklyHours = $statsStore.weeklyTotalHours
 
   // Format seconds to HH:MM:SS
   function formatTime(seconds: number): string {
@@ -46,18 +55,7 @@
     activeTasks = activeTasks
   }
 
-  async function loadActiveSession() {
-    try {
-      const session = await workSessionsRepo.getActiveSession()
-      activeSession = session ?? null
-      
-      if (activeSession) {
-        updateTimers()
-      }
-    } catch (error) {
-      console.error('[LiveStatus] Failed to load active session:', error)
-    }
-  }
+  // FIX 9: Removed loadActiveSession - now subscribed via workSessionStore
 
   async function loadActiveTasks() {
     try {
@@ -68,7 +66,9 @@
     }
   }
 
-  async function calculateTodayTime() {
+  // FIX 9: Calculate today's time from statsStore + active session
+  // This is a temporary approach - ideally statsStore would track daily totals
+  async function calculateTodayTime(): Promise<number> {
     try {
       const allSessions = await workSessionsRepo.getAllSessions()
       const today = new Date()
@@ -79,16 +79,26 @@
         return sessionDate >= today && s.totalMinutes !== undefined
       })
 
-      totalTimeToday = todaySessions.reduce((sum, s) => sum + (s.netMinutes || s.totalMinutes || 0), 0)
+      return todaySessions.reduce((sum, s) => sum + (s.netMinutes || s.totalMinutes || 0), 0)
     } catch (error) {
       console.error('[LiveStatus] Failed to calculate today time:', error)
+      return 0
     }
+  }
+  
+  let totalTimeToday = 0
+  
+  // Recalculate today's time when active session changes (clock in/out)
+  $: if (activeSession !== null) {
+    calculateTodayTime().then(minutes => { totalTimeToday = minutes })
+  } else {
+    calculateTodayTime().then(minutes => { totalTimeToday = minutes })
   }
 
   onMount(() => {
-    loadActiveSession()
+    // FIX 9: No need to load active session - workSessionStore handles it
     loadActiveTasks()
-    calculateTodayTime()
+    calculateTodayTime().then(minutes => { totalTimeToday = minutes })
 
     // Update every second
     intervalId = window.setInterval(() => {
@@ -97,9 +107,9 @@
 
     // Refresh data every 30 seconds
     const refreshId = window.setInterval(() => {
-      loadActiveSession()
+      // FIX 9: Don't reload active session - store is the source of truth
       loadActiveTasks()
-      calculateTodayTime()
+      calculateTodayTime().then(minutes => { totalTimeToday = minutes })
     }, 30000)
 
     return () => {

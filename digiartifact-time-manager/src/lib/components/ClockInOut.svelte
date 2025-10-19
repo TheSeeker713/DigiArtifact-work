@@ -3,8 +3,13 @@
   import { workSessionsRepo } from '../repos/workSessionsRepo'
   import type { WorkSessionRecord, BreakPeriod } from '../types/entities'
   import { debugLog } from '../utils/debug'
+  import { workSessionStore } from '../stores/workSessionStore'
+  import { recomputeWeekAggregates } from '../services/statsAggregationService'
+  import { toastStore } from '../stores/toastStore'
 
-  let activeSession: WorkSessionRecord | null = null
+  // FIX 9: Subscribe to global work session store instead of local state
+  $: activeSession = $workSessionStore.activeSession
+  $: storeLoading = $workSessionStore.loading
   let elapsedTime = 0
   let breakTime = 0
   let currentBreak: BreakPeriod | null = null
@@ -50,14 +55,16 @@
       const session = await workSessionsRepo.getActiveSession()
       console.log('[ClockInOut] Active session found:', session)
       
-      activeSession = session ?? null
-      if (activeSession) {
+      // FIX 9: Update global store instead of local state
+      workSessionStore.setActiveSession(session ?? null)
+      
+      if (session) {
         // Initialize timer state from session
-        start_wallclock = new Date(activeSession.clockInTime).getTime()
+        start_wallclock = new Date(session.clockInTime).getTime()
         start_hrtime = performance.now() - (Date.now() - start_wallclock)
-        break_ms_accum = (activeSession.totalBreakMinutes || 0) * 60000
+        break_ms_accum = (session.totalBreakMinutes || 0) * 60000
         
-        currentBreak = workSessionsRepo.getCurrentBreak(activeSession)
+        currentBreak = workSessionsRepo.getCurrentBreak(session)
         if (currentBreak && currentBreak.startTime) {
           break_started_at = new Date(currentBreak.startTime).getTime()
         } else {
@@ -74,6 +81,7 @@
       }
     } catch (error) {
       console.error('[ClockInOut] Failed to load active session:', error)
+      workSessionStore.setError('Failed to load active session')
     }
   }
 
@@ -86,6 +94,8 @@
 
   async function clockIn() {
     loading = true
+    workSessionStore.setLoading(true)
+    
     try {
       // Initialize timer state with both high-resolution and wall clock time
       start_hrtime = performance.now()
@@ -124,7 +134,9 @@
         timer_state: { start_hrtime, start_wallclock, break_ms_accum, break_started_at }
       })
       
-      activeSession = created
+      // FIX 9: Update global store instead of local state
+      workSessionStore.setActiveSession(created)
+      
       elapsedTime = 0
       breakTime = 0
       currentBreak = null
@@ -139,10 +151,16 @@
     } catch (error) {
       debugLog.time.error('Clock In failed', { error })
       console.error('[ClockInOut] Failed to clock in:', error)
-      alert('Failed to clock in. Please try again.')
+      workSessionStore.setError('Failed to clock in. Please try again.')
+      toastStore.enqueue({
+        message: 'Failed to clock in. Please try again.',
+        tone: 'error',
+        duration: 5000,
+      })
       resetTimerState()
     } finally {
       loading = false
+      workSessionStore.setLoading(false)
     }
   }
 
@@ -264,9 +282,11 @@
         breaks_count: savedSession?.breaks?.length || 0,
       })
 
+      // FIX 9: Clear active session in global store (triggers header badge update)
+      workSessionStore.clearActiveSession()
+      
       // Reset timer state
       resetTimerState()
-      activeSession = null
       elapsedTime = 0
       breakTime = 0
       currentBreak = null
@@ -277,13 +297,112 @@
         intervalId = null
       }
       
+      // FIX 9: Recompute week aggregates (updates "This Week" stats)
+      try {
+        await recomputeWeekAggregates()
+        debugLog.time.info('Clock Out: Stats recomputed successfully')
+      } catch (statsError) {
+        console.error('[ClockInOut] Failed to recompute stats after clock out:', statsError)
+        // Non-blocking: stats will sync later
+      }
+      
       console.log('[ClockInOut] Clock Out complete')
+      toastStore.enqueue({
+        message: '✅ Clocked out successfully',
+        tone: 'success',
+        duration: 3000,
+      })
     } catch (error) {
       debugLog.time.error('Clock Out failed', { error })
       console.error('[ClockInOut] Failed to clock out:', error)
-      alert('Failed to clock out. Please try again.')
+      
+      // FIX 9: DO NOT clear timer state on error - preserve session
+      workSessionStore.setError('Failed to clock out')
+      
+      // Show error recovery toast with actions
+      showClockOutErrorToast()
     } finally {
       loading = false
+    }
+  }
+  
+  /**
+   * FIX 9: Show error recovery toast with Retry/Save Locally options
+   */
+  function showClockOutErrorToast() {
+    const errorHtml = `
+      <div class="space-y-2">
+        <p class="font-semibold">Failed to save clock out</p>
+        <p class="text-sm">Your work session is still active. Choose an option:</p>
+        <div class="flex gap-2 mt-2">
+          <button 
+            onclick="window.retryClockOut()" 
+            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded text-sm font-medium transition-colors"
+          >
+            Retry Save
+          </button>
+          <button 
+            onclick="window.saveLocallyAndClear()" 
+            class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 rounded text-sm font-medium transition-colors"
+          >
+            Save Locally
+          </button>
+        </div>
+      </div>
+    `
+    
+    toastStore.enqueue({
+      message: errorHtml,
+      tone: 'error',
+      duration: 0, // Persistent until user acts
+    })
+    
+    // Attach global handlers
+    if (typeof window !== 'undefined') {
+      ;(window as any).retryClockOut = () => {
+        toastStore.clear()
+        clockOut()
+      }
+      
+      ;(window as any).saveLocallyAndClear = async () => {
+        try {
+          // Save session data to localStorage as backup
+          const backupData = {
+            session: activeSession,
+            clockOutTime: new Date().toISOString(),
+            timerState: { start_wallclock, break_ms_accum, elapsedTime },
+          }
+          localStorage.setItem('clockout_backup', JSON.stringify(backupData))
+          
+          // Clear UI state to let user continue
+          workSessionStore.clearActiveSession()
+          resetTimerState()
+          elapsedTime = 0
+          breakTime = 0
+          currentBreak = null
+          
+          if (intervalId !== null) {
+            clearInterval(intervalId)
+            intervalId = null
+          }
+          
+          toastStore.clear()
+          toastStore.enqueue({
+            message: '⚠️ Session saved locally. Please sync manually when online.',
+            tone: 'warning',
+            duration: 8000,
+          })
+          
+          debugLog.time.warn('Clock Out: Saved locally due to error', { backupData })
+        } catch (backupError) {
+          console.error('[ClockInOut] Failed to save locally:', backupError)
+          toastStore.enqueue({
+            message: 'Failed to save locally. Please screenshot your session details.',
+            tone: 'error',
+            duration: 10000,
+          })
+        }
+      }
     }
   }
 
@@ -307,7 +426,10 @@
       
       console.log('[ClockInOut] Starting break')
       const updated = await workSessionsRepo.startBreak(activeSession.id)
-      activeSession = updated
+      
+      // FIX 9: Update global store
+      workSessionStore.setActiveSession(updated)
+      
       currentBreak = workSessionsRepo.getCurrentBreak(updated)
       breakTime = 0
       
@@ -321,7 +443,11 @@
     } catch (error) {
       debugLog.time.error('Take Break failed', { error })
       console.error('[ClockInOut] Failed to start break:', error)
-      alert('Failed to start break. Please try again.')
+      toastStore.enqueue({
+        message: 'Failed to start break. Please try again.',
+        tone: 'error',
+        duration: 5000,
+      })
       break_started_at = null
     } finally {
       loading = false
@@ -352,7 +478,10 @@
       
       console.log('[ClockInOut] Ending break')
       const updated = await workSessionsRepo.endBreak(activeSession.id)
-      activeSession = updated
+      
+      // FIX 9: Update global store
+      workSessionStore.setActiveSession(updated)
+      
       currentBreak = null
       breakTime = 0
       
@@ -371,7 +500,11 @@
     } catch (error) {
       debugLog.time.error('Resume Work failed', { error })
       console.error('[ClockInOut] Failed to end break:', error)
-      alert('Failed to end break. Please try again.')
+      toastStore.enqueue({
+        message: 'Failed to end break. Please try again.',
+        tone: 'error',
+        duration: 5000,
+      })
       // Rollback the break accumulation on error
       if (break_started_at !== null) {
         const current_break_ms = Date.now() - break_started_at
@@ -383,10 +516,24 @@
   }
 
   onMount(() => {
-    loadActiveSession()
-
-    // Start interval if there's an active session
+    // FIX 9: Don't load active session - workSessionStore is already initialized
+    // If activeSession exists (from store), initialize timer state
     if (activeSession) {
+      start_wallclock = new Date(activeSession.clockInTime).getTime()
+      start_hrtime = performance.now() - (Date.now() - start_wallclock)
+      break_ms_accum = (activeSession.totalBreakMinutes || 0) * 60000
+      
+      currentBreak = workSessionsRepo.getCurrentBreak(activeSession)
+      if (currentBreak && currentBreak.startTime) {
+        break_started_at = new Date(currentBreak.startTime).getTime()
+      } else {
+        break_started_at = null
+      }
+      
+      updateElapsedTime()
+      console.log('[ClockInOut] Resumed active session from store')
+      
+      // Start interval
       intervalId = window.setInterval(updateElapsedTime, 1000)
     }
   })
