@@ -6,6 +6,7 @@ import type { TimeLogRecord } from '../types/entities'
 import { statsStore } from '../stores/statsStore'
 import { settingsStore } from '../stores/settingsStore'
 import { timeLogsStore } from '../stores/timeLogsStore'
+import { toastInfo } from '../stores/toastStore'
 import { eventBus } from '../events/eventBus'
 import { formatWeekBucket, getCurrentWeekBucket } from '../utils/time'
 import { onTimeLogChanged } from './statsAggregationService'
@@ -134,8 +135,27 @@ export async function createManualLog(input: ManualLogInput): Promise<TimeLogRec
     throw new Error('INVALID_RANGE')
   }
 
+  // FIX 8: Validate session duration (warn if > 14 hours)
+  const { validateSessionDuration, formatSessionWarning } = await import('../utils/timeBuckets')
+  const validation = validateSessionDuration(startIso, endIso, 14)
+  
+  if (!validation.valid) {
+    // Session exceeds 14 hours - warn user
+    const warningMsg = formatSessionWarning(validation.hours, validation.exceedsBy)
+    const confirmed = confirm(warningMsg)
+    
+    if (!confirmed) {
+      toastInfo('Manual TimeLog creation cancelled')
+      throw new Error('USER_CANCELLED_LONG_SESSION')
+    }
+    
+    toastInfo(`Long session confirmed: ${validation.hours.toFixed(1)} hours`)
+  }
+
   const durationMinutes = coerceDurationMinutes((input.end.getTime() - input.start.getTime()) / 60000)
   const personId = DEFAULT_PERSON_ID
+  
+  // FIX 8: Week bucket is determined by START date, not end date
   const weekBucket = computeWeekBucket(startIso, getWeekStartSetting())
 
   await ensureNoOverlap(personId, startIso, endIso)

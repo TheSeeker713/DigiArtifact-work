@@ -154,6 +154,38 @@
       console.log('[ClockInOut] Clock Out initiated for session:', activeSession.id)
       const now = Date.now()
       
+      // FIX 8: Validate session duration before proceeding
+      const startDT = activeSession.clockInTime
+      const endDT = new Date(now).toISOString()
+      
+      // Import validation utilities
+      const { validateSessionDuration, formatSessionWarning } = await import('../utils/timeBuckets')
+      const validation = validateSessionDuration(startDT, endDT, 14)
+      
+      if (!validation.valid) {
+        // Session exceeds 14 hours - warn and require confirmation
+        const warningMsg = formatSessionWarning(validation.hours, validation.exceedsBy)
+        const confirmed = confirm(warningMsg)
+        
+        if (!confirmed) {
+          console.log('[ClockInOut] User cancelled clock out due to long session duration')
+          debugLog.time.warn('Clock Out cancelled by user', {
+            session_id: activeSession.id,
+            duration_hours: validation.hours,
+            exceeds_by: validation.exceedsBy
+          })
+          loading = false
+          return
+        }
+        
+        debugLog.time.warn('Clock Out confirmed for long session', {
+          session_id: activeSession.id,
+          duration_hours: validation.hours,
+          exceeds_by: validation.exceedsBy,
+          user_confirmed: true
+        })
+      }
+      
       // Close active break first if exists
       if (break_started_at !== null) {
         const current_break_ms = now - break_started_at

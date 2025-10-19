@@ -1,5 +1,6 @@
 /**
  * FIX 5: Timezone-Aware Week Calculations
+ * FIX 8: Week Boundary Policy for Multi-Day Sessions
  * 
  * Provides timezone-correct date operations for week boundaries, avoiding
  * off-by-one errors due to timezone differences and DST transitions.
@@ -9,6 +10,34 @@
  * - Calculates week boundaries respecting user's week start preference (Sunday/Monday)
  * - Handles DST transitions correctly (spring forward, fall back)
  * - Inclusive start, exclusive end date ranges
+ * 
+ * === WEEK BOUNDARY POLICY (FIX 8) ===
+ * 
+ * TIME ATTRIBUTION RULE:
+ * All time is attributed to the **START date** of the work session, NOT the end date.
+ * 
+ * This means:
+ * - Session starts Monday 11:30 PM, ends Tuesday 2:00 AM → Counted in MONDAY's week
+ * - Session starts Friday 10:00 PM, ends Saturday 1:00 AM → Counted in FRIDAY's week
+ * - Session spans week boundary (Sunday → Monday) → Counted in PREVIOUS week
+ * 
+ * Rationale:
+ * 1. Consistent Attribution: Time logs "belong" to the day work began
+ * 2. Prevents Double-Counting: A single session appears in only one week
+ * 3. Matches Invoice Behavior: Work billed based on start date
+ * 4. User Expectation: "I worked Monday night" = counted on Monday
+ * 
+ * Edge Cases:
+ * - Overnight shift (8 PM → 4 AM): Full hours counted on start day
+ * - Week-spanning session (Sun 11 PM → Mon 2 AM): Full hours in previous week
+ * - Multi-day session (accident, e.g., forgot to clock out): Validation warning at >14h
+ * 
+ * Implementation:
+ * - `getWeekLabel()` uses startDT only, ignoring endDT
+ * - `weekRangeFor()` calculates boundaries from start timestamp
+ * - `isInRange()` checks if startDT falls within [weekStart, weekEnd)
+ * 
+ * See FIX_8_WEEK_BOUNDARY_POLICY_SUMMARY.md for full documentation.
  * 
  * @module timeBuckets
  */
@@ -256,18 +285,101 @@ export function isCurrentWeek(dateIso: string, tz: string, weekStart: WeekStart 
 /**
  * Get week label for a date (YYYY-Www format)
  * 
- * @param dateIso - ISO date string
+ * **IMPORTANT (FIX 8):** When used for TimeLogs, always pass startDT, NOT endDT.
+ * This ensures time is attributed to the start date of the session.
+ * 
+ * @param dateIso - ISO date string (use startDT for TimeLogs)
  * @param tz - IANA timezone identifier
  * @param weekStart - Week start day preference
  * @returns Week label like "2025-W42"
  * 
  * @example
- * const label = getWeekLabel("2025-10-18T14:30:00.000Z", "America/New_York", "monday")
- * console.log(label) // "2025-W42"
+ * // Correct usage for TimeLog:
+ * const label = getWeekLabel(timeLog.startDT, tz, weekStart)  // ✅ Use startDT
+ * 
+ * // Incorrect usage:
+ * const label = getWeekLabel(timeLog.endDT, tz, weekStart)    // ❌ Don't use endDT
+ * 
+ * @example
+ * // Session starts Monday 11:30 PM, ends Tuesday 2:00 AM
+ * const startDT = "2025-10-13T23:30:00.000Z"  // Monday night
+ * const endDT = "2025-10-14T02:00:00.000Z"    // Tuesday morning
+ * const label = getWeekLabel(startDT, "America/New_York", "monday")
+ * console.log(label) // "2025-W42" (Monday's week, not Tuesday's)
  */
 export function getWeekLabel(dateIso: string, tz: string, weekStart: WeekStart = 'monday'): string {
   const { weekLabel } = weekRangeFor(dateIso, tz, weekStart)
   return weekLabel
+}
+
+/**
+ * FIX 8: Session Duration Validation
+ * 
+ * Check if a work session exceeds a reasonable duration threshold.
+ * Used to detect potential clock-out mistakes (e.g., forgot to clock out).
+ * 
+ * @param startDT - Session start timestamp (ISO string)
+ * @param endDT - Session end timestamp (ISO string)
+ * @param maxHours - Maximum reasonable session duration (default: 14 hours)
+ * @returns Object with validation result and calculated duration
+ * 
+ * @example
+ * const result = validateSessionDuration(
+ *   "2025-10-18T08:00:00.000Z",
+ *   "2025-10-19T02:00:00.000Z"
+ * )
+ * // result = { valid: false, hours: 18, minutes: 1080, exceedsBy: 4 }
+ */
+export function validateSessionDuration(
+  startDT: string,
+  endDT: string,
+  maxHours = 14
+): {
+  valid: boolean
+  hours: number
+  minutes: number
+  exceedsBy: number
+} {
+  const startMs = new Date(startDT).getTime()
+  const endMs = new Date(endDT).getTime()
+  const durationMs = endMs - startMs
+  
+  if (durationMs < 0) {
+    // End before start - invalid
+    return { valid: false, hours: 0, minutes: 0, exceedsBy: 0 }
+  }
+  
+  const minutes = Math.round(durationMs / (1000 * 60))
+  const hours = minutes / 60
+  const maxMinutes = maxHours * 60
+  
+  const valid = minutes <= maxMinutes
+  const exceedsBy = valid ? 0 : hours - maxHours
+  
+  return {
+    valid,
+    hours: Math.round(hours * 100) / 100,
+    minutes,
+    exceedsBy: Math.round(exceedsBy * 100) / 100,
+  }
+}
+
+/**
+ * FIX 8: Format session duration warning message
+ * 
+ * Generate user-friendly warning text for long sessions.
+ * 
+ * @param hours - Session duration in hours
+ * @param exceedsBy - How many hours over the threshold
+ * @returns Formatted warning message
+ * 
+ * @example
+ * const msg = formatSessionWarning(18.5, 4.5)
+ * // "This session is 18.5 hours long (4.5 hours over the typical limit).
+ * //  Did you forget to clock out? Please confirm this is correct."
+ */
+export function formatSessionWarning(hours: number, exceedsBy: number): string {
+  return `This session is ${hours.toFixed(1)} hours long (${exceedsBy.toFixed(1)} hours over the typical limit). Did you forget to clock out? Please confirm this is correct.`
 }
 
 /**
