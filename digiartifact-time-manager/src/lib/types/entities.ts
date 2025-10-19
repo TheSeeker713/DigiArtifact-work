@@ -152,11 +152,21 @@ export type FormSubmissionRecord = BaseRecord & {
   consent: boolean
 }
 
+export type BreakPeriod = {
+  id: string
+  startTime: ISODate
+  endTime?: ISODate | null
+  durationMinutes?: number
+}
+
 export type WorkSessionRecord = BaseRecord & {
   clockInTime: ISODate
   clockOutTime?: ISODate | null
-  status: 'active' | 'completed'
+  status: 'active' | 'completed' | 'on_break'
   totalMinutes?: number
+  breaks?: BreakPeriod[]
+  totalBreakMinutes?: number
+  netMinutes?: number // totalMinutes - totalBreakMinutes
   note?: string
 }
 
@@ -169,6 +179,25 @@ export type ActiveTaskRecord = BaseRecord & {
   elapsedMinutes: number
   billable?: boolean
   note?: string
+}
+
+export type PomodoroSettings = {
+  workDuration: number // minutes
+  shortBreakDuration: number // minutes
+  longBreakDuration: number // minutes
+  longBreakInterval: number // every N pomodoros
+  autoStartBreaks: boolean
+  autoStartPomodoros: boolean
+  soundEnabled: boolean // for future sound FX
+}
+
+export type PomodoroSession = {
+  id: string
+  startTime: ISODate
+  endTime?: ISODate | null
+  type: 'work' | 'short_break' | 'long_break'
+  completed: boolean
+  pomodoroCount?: number // which pomodoro cycle (1, 2, 3, 4...)
 }
 
 

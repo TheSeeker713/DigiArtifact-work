@@ -4,6 +4,7 @@
 
   import LazyUplot from '../lib/components/charts/LazyUplot.svelte'
   import ClockInOut from '../lib/components/ClockInOut.svelte'
+  import PomodoroTimer from '../lib/components/PomodoroTimer.svelte'
   import {
     fetchEightWeekHours,
     fetchRevenueByMonth,
@@ -180,8 +181,11 @@
     </p>
   </header>
 
-  <!-- Clock In/Out Widget -->
-  <ClockInOut />
+  <!-- Time Tracking Widgets -->
+  <div class="grid gap-6 lg:grid-cols-2">
+    <ClockInOut />
+    <PomodoroTimer />
+  </div>
 
   <div class="grid gap-4 md:grid-cols-2">
     <article class="space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-5">

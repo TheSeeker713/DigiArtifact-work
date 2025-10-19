@@ -3,6 +3,7 @@
   import type { ComponentType } from 'svelte'
 
   import AppShell from './lib/components/AppShell.svelte'
+  import LiveStatusHeader from './lib/components/LiveStatusHeader.svelte'
   import PerformanceMonitor from './lib/components/PerformanceMonitor.svelte'
   import type { NavSection } from './lib/components/appShell.types'
   import { routes, findRouteByPath, type RouteKey } from './routes'
@@ -194,6 +195,8 @@
     }
   })
 </script>
+
+<LiveStatusHeader />
 
 <AppShell
   sections={navSections}

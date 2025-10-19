@@ -56,41 +56,61 @@ export function createRepository<Store extends WritableStore>(storeName: Store, 
   }
 
   async function create(data: Omit<EntityRecord, keyof BaseRecord>): Promise<EntityRecord> {
-    const db = await getDB()
-    const timestamp = nowIso()
-    const record = {
-      id: randomId(),
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      deletedAt: null,
-      ...(data as Record<string, unknown>),
-    } as EntityRecord
+    try {
+      const db = await getDB()
+      const timestamp = nowIso()
+      const record = {
+        id: randomId(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+        ...(data as Record<string, unknown>),
+      } as EntityRecord
 
-    await db.add(storeName, record)
-    await logAudit(entityName, record.id, 'create', null, record)
-    return record
+      console.log(`[${entityName}] Creating record:`, record)
+      await db.add(storeName, record)
+      console.log(`[${entityName}] Record added to IndexedDB successfully`)
+      
+      await logAudit(entityName, record.id, 'create', null, record)
+      console.log(`[${entityName}] Audit log created`)
+      
+      return record
+    } catch (error) {
+      console.error(`[${entityName}] Failed to create record:`, error)
+      throw error
+    }
   }
 
   async function update(
     id: string,
     updates: Partial<Omit<EntityRecord, keyof BaseRecord>>,
   ): Promise<EntityRecord> {
-    const db = await getDB()
-    const existing = (await db.get(storeName, id)) as EntityRecord | undefined
-    if (!existing || existing.deletedAt) {
-      throw new Error(`${entityName} ${id} not found`)
+    try {
+      const db = await getDB()
+      const existing = (await db.get(storeName, id)) as EntityRecord | undefined
+      if (!existing || existing.deletedAt) {
+        throw new Error(`${entityName} ${id} not found`)
+      }
+
+      const timestamp = nowIso()
+      const updated = {
+        ...existing,
+        ...updates,
+        updatedAt: timestamp,
+      } as EntityRecord
+
+      console.log(`[${entityName}] Updating record ${id}:`, updates)
+      await db.put(storeName, updated)
+      console.log(`[${entityName}] Record updated in IndexedDB successfully`)
+      
+      await logAudit(entityName, id, 'update', existing, updated)
+      console.log(`[${entityName}] Audit log created`)
+      
+      return updated
+    } catch (error) {
+      console.error(`[${entityName}] Failed to update record ${id}:`, error)
+      throw error
     }
-
-    const timestamp = nowIso()
-    const updated = {
-      ...existing,
-      ...updates,
-      updatedAt: timestamp,
-    } as EntityRecord
-
-    await db.put(storeName, updated)
-    await logAudit(entityName, id, 'update', existing, updated)
-    return updated
   }
 
   async function softDelete(id: string): Promise<void> {
