@@ -30,6 +30,7 @@
   let elapsedMs = 0
   let startPerf = 0
   let rafHandle: number | null = null
+  let tickCount = 0 // Force Svelte reactivity
 
   let manualJobId: string | null = null
   let manualTaskId: string | null = null
@@ -90,6 +91,7 @@
       return
     }
     elapsedMs = accumulatedMs + (performance.now() - startPerf)
+    tickCount++ // Increment to trigger Svelte reactivity
     rafHandle = requestAnimationFrame(tick)
   }
 
@@ -107,6 +109,7 @@
     accumulatedMs = 0
     elapsedMs = 0
     startPerf = 0
+    tickCount = 0
     timerNote = ''
     timerBillable = true
   }
@@ -188,8 +191,8 @@
     resetTimerState()
   }
 
-  // Reactive declaration to ensure UI updates with elapsedMs changes
-  $: displayedDuration = formatDurationMs(elapsedMs)
+  // Reactive declaration - depends on tickCount to force updates every frame
+  $: displayedDuration = tickCount >= 0 ? formatDurationMs(elapsedMs) : '00:00:00'
 
   function computeManualDurationMinutes() {
     if (!manualDate || !manualStart || !manualEnd) return 0

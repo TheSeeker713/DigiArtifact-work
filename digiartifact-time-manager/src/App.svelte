@@ -11,6 +11,7 @@
   import { sessionStore } from './lib/stores/sessionStore'
   import { toastError, toastInfo } from './lib/stores/toastStore'
   import { debugControl } from './lib/utils/debug'
+  import './lib/utils/dbReset' // Load database reset utility (adds window.resetDatabase())
 
   const defaultRoute: RouteKey = 'dashboard'
 
