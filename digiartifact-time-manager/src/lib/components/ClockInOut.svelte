@@ -6,6 +6,7 @@
   import { workSessionStore } from '../stores/workSessionStore'
   import { recomputeWeekAggregates } from '../services/statsAggregationService'
   import { toastStore } from '../stores/toastStore'
+  import { offlineQueueStore } from '../stores/offlineQueueStore'
 
   // FIX 9: Subscribe to global work session store instead of local state
   $: activeSession = $workSessionStore.activeSession
@@ -172,10 +173,31 @@
       console.log('[ClockInOut] Clock Out initiated for session:', activeSession.id)
       const now = Date.now()
       
-      // FIX 8: Validate session duration before proceeding
+      // FIX 11: Validate end_dt > start_dt (prevent time travel)
       const startDT = activeSession.clockInTime
       const endDT = new Date(now).toISOString()
+      const startMs = new Date(startDT).getTime()
+      const endMs = new Date(endDT).getTime()
       
+      if (endMs <= startMs) {
+        debugLog.time.error('Clock Out: Invalid time range', {
+          start_dt: startDT,
+          end_dt: endDT,
+          start_ms: startMs,
+          end_ms: endMs,
+        })
+        
+        toastStore.enqueue({
+          message: '⚠️ Clock out time must be after clock in time. Please check your system clock.',
+          tone: 'error',
+          duration: 8000,
+        })
+        
+        loading = false
+        return
+      }
+      
+      // FIX 8: Validate session duration before proceeding
       // Import validation utilities
       const { validateSessionDuration, formatSessionWarning } = await import('../utils/timeBuckets')
       const validation = validateSessionDuration(startDT, endDT, 14)
@@ -232,6 +254,34 @@
         totalMinutes = 0
       }
       
+      // FIX 11: Warn if duration is zero
+      if (totalMinutes === 0) {
+        debugLog.time.warn('Clock Out: Zero duration detected', {
+          session_id: activeSession.id,
+          clock_in: startDT,
+          clock_out: endDT,
+          elapsed_ms,
+          break_ms: break_ms_accum,
+        })
+        
+        const confirmed = confirm(
+          'Warning: This session has 0 minutes of work time.\n\n' +
+          `Clock In: ${new Date(startDT).toLocaleString()}\n` +
+          `Clock Out: ${new Date(endDT).toLocaleString()}\n\n` +
+          'This may be due to:\n' +
+          '• Very short session (< 30 seconds)\n' +
+          '• System clock changed during session\n' +
+          '• All time spent on break\n\n' +
+          'Do you want to save this 0-minute session?'
+        )
+        
+        if (!confirmed) {
+          debugLog.time.info('Clock Out: User cancelled zero-duration session')
+          loading = false
+          return
+        }
+      }
+      
       const totalBreakMinutes = Math.round(break_ms_accum / 60000)
       const netMinutes = totalMinutes // work_ms already excludes breaks
 
@@ -258,29 +308,55 @@
       console.log('[ClockInOut] Break minutes:', totalBreakMinutes)
       console.log('[ClockInOut] Net minutes:', netMinutes)
 
-      await workSessionsRepo.update(activeSession.id, {
-        clockOutTime: new Date().toISOString(),
-        status: 'completed',
-        totalMinutes,
-        netMinutes,
-      })
+      // FIX 11: Try to save, enqueue on failure
+      try {
+        await workSessionsRepo.update(activeSession.id, {
+          clockOutTime: new Date().toISOString(),
+          status: 'completed',
+          totalMinutes,
+          netMinutes,
+        })
 
-      console.log('[ClockInOut] Session updated successfully')
+        console.log('[ClockInOut] Session updated successfully')
 
-      // Verify the data was saved
-      const savedSession = await workSessionsRepo.getById(activeSession.id)
-      console.log('[ClockInOut] Verified saved session:', savedSession)
-      
-      debugLog.time.info('Clock Out complete - saved session verified', {
-        session_id: savedSession?.id,
-        clock_in: savedSession?.clockInTime,
-        clock_out: savedSession?.clockOutTime,
-        total_minutes: savedSession?.totalMinutes,
-        break_minutes: savedSession?.totalBreakMinutes,
-        net_minutes: savedSession?.netMinutes,
-        status: savedSession?.status,
-        breaks_count: savedSession?.breaks?.length || 0,
-      })
+        // Verify the data was saved
+        const savedSession = await workSessionsRepo.getById(activeSession.id)
+        console.log('[ClockInOut] Verified saved session:', savedSession)
+        
+        debugLog.time.info('Clock Out complete - saved session verified', {
+          session_id: savedSession?.id,
+          clock_in: savedSession?.clockInTime,
+          clock_out: savedSession?.clockOutTime,
+          total_minutes: savedSession?.totalMinutes,
+          break_minutes: savedSession?.totalBreakMinutes,
+          net_minutes: savedSession?.netMinutes,
+          status: savedSession?.status,
+          breaks_count: savedSession?.breaks?.length || 0,
+        })
+      } catch (saveError) {
+        // FIX 11: Enqueue failed write to offline queue
+        debugLog.time.error('Clock Out: IndexedDB save failed, enqueueing', { error: saveError })
+        
+        offlineQueueStore.enqueue({
+          type: 'workSession',
+          operation: 'update',
+          data: {
+            id: activeSession.id,
+            clockOutTime: new Date().toISOString(),
+            status: 'completed',
+            totalMinutes,
+            netMinutes,
+          },
+        })
+        
+        toastStore.enqueue({
+          message: '⚠️ Clock out saved to local queue. Will sync when database is available.',
+          tone: 'warning',
+          duration: 5000,
+        })
+        
+        // Continue with UI updates (optimistic update)
+      }
 
       // FIX 9: Clear active session in global store (triggers header badge update)
       workSessionStore.clearActiveSession()

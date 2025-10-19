@@ -5,10 +5,12 @@
   import AppShell from './lib/components/AppShell.svelte'
   import LiveStatusHeader from './lib/components/LiveStatusHeader.svelte'
   import PerformanceMonitor from './lib/components/PerformanceMonitor.svelte'
+  import DiagnosticsPanel from './lib/components/DiagnosticsPanel.svelte'
   import type { NavSection } from './lib/components/appShell.types'
   import { routes, findRouteByPath, type RouteKey } from './routes'
   import { sessionStore } from './lib/stores/sessionStore'
   import { toastError, toastInfo } from './lib/stores/toastStore'
+  import { debugControl } from './lib/utils/debug'
 
   const defaultRoute: RouteKey = 'dashboard'
 
@@ -175,10 +177,21 @@
     toastInfo(enabled ? 'Low-end mode enabled for constrained hardware.' : 'Low-end mode disabled.')
   }
 
+  // Check if debug mode is enabled (reactive)
+  let isDebugMode = false
+  
+  function updateDebugMode() {
+    isDebugMode = debugControl.isDebugModeEnabled()
+  }
+
   onMount(() => {
     if (typeof window === 'undefined') {
       return
     }
+
+    // Check debug mode on mount and set up interval to check periodically
+    updateDebugMode()
+    const debugCheckInterval = setInterval(updateDebugMode, 1000)
 
     const initialRoute = (window.history.state?.route as RouteKey | undefined) ?? findRouteByPath(window.location.pathname) ?? defaultRoute
     void loadRoute(initialRoute, { updateHistory: true, replace: true, force: true })
@@ -192,6 +205,7 @@
 
     return () => {
       window.removeEventListener('popstate', handlePopState)
+      clearInterval(debugCheckInterval)
     }
   })
 </script>
@@ -227,4 +241,10 @@
 
 {#if $sessionStore.performanceMonitorEnabled}
   <PerformanceMonitor />
+{/if}
+
+{#if isDebugMode}
+  <div class="fixed bottom-4 right-4 w-[600px] max-h-[80vh] overflow-auto z-50 shadow-2xl">
+    <DiagnosticsPanel />
+  </div>
 {/if}

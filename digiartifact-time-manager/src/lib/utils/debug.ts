@@ -11,7 +11,7 @@
 
 export type LogLevel = 'info' | 'warn' | 'error'
 
-export type LogCategory = 'time' | 'db' | 'ui' | 'repo' | 'general'
+export type LogCategory = 'time' | 'db' | 'ui' | 'repo' | 'sync' | 'general'
 
 interface LogEntry {
   category: LogCategory
@@ -45,6 +45,7 @@ class DebugLogger {
       this.categories.add('db')
       this.categories.add('ui')
       this.categories.add('repo')
+      this.categories.add('sync')
       this.categories.add('general')
       console.log('[debug] Debug mode enabled via URL parameter')
     }
@@ -74,6 +75,7 @@ class DebugLogger {
           this.categories.add('db')
           this.categories.add('ui')
           this.categories.add('repo')
+          this.categories.add('sync')
           this.categories.add('general')
           console.log('[debug] Debug mode enabled via Settings')
         }
@@ -95,6 +97,7 @@ class DebugLogger {
       this.categories.add('db')
       this.categories.add('ui')
       this.categories.add('repo')
+      this.categories.add('sync')
       this.categories.add('general')
     }
     console.log('[debug] Debug logging enabled for:', Array.from(this.categories))
@@ -107,6 +110,13 @@ class DebugLogger {
     this.enabled = false
     this.categories.clear()
     console.log('[debug] Debug logging disabled')
+  }
+
+  /**
+   * Check if debug mode is globally enabled
+   */
+  isDebugModeEnabled(): boolean {
+    return this.enabled
   }
 
   /**
@@ -231,6 +241,7 @@ export const debugLog = {
   db: debugLogger.createCategoryLogger('db'),
   ui: debugLogger.createCategoryLogger('ui'),
   repo: debugLogger.createCategoryLogger('repo'),
+  sync: debugLogger.createCategoryLogger('sync'),
   general: debugLogger.createCategoryLogger('general'),
 }
 
@@ -238,6 +249,7 @@ export const debugLog = {
 export const debugControl = {
   enable: (categories?: LogCategory[]) => debugLogger.enable(categories),
   disable: () => debugLogger.disable(),
+  isDebugModeEnabled: () => debugLogger.isDebugModeEnabled(),
   isEnabled: (category: LogCategory) => debugLogger.isEnabled(category),
   getLogs: () => debugLogger.getLogs(),
   clearLogs: () => debugLogger.clearLogs(),

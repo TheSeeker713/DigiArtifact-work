@@ -5,9 +5,14 @@
   import type { ActiveTaskRecord } from '../types/entities'
   import { workSessionStore } from '../stores/workSessionStore'
   import { statsStore } from '../stores/statsStore'
+  import { offlineQueueStore } from '../stores/offlineQueueStore'
 
   // FIX 9: Subscribe to global work session store (single source of truth)
   $: activeSession = $workSessionStore.activeSession
+  
+  // FIX 11: Subscribe to offline queue for unsynced badge
+  $: unsyncedCount = $offlineQueueStore.items.length
+  $: isSyncing = $offlineQueueStore.syncing
   
   let activeTasks: ActiveTaskRecord[] = []
   let elapsedTime = 0
@@ -18,6 +23,23 @@
   // This can be enhanced later to track daily stats in statsStore
   $: weeklyMinutes = $statsStore.weekly.totalMinutes
   $: weeklyHours = $statsStore.weeklyTotalHours
+  
+  /**
+   * FIX 11: Manual sync trigger for unsynced items
+   */
+  async function handleSyncClick() {
+    if (isSyncing) return
+    
+    const result = await offlineQueueStore.flush()
+    
+    if (result.success > 0) {
+      console.log(`[LiveStatus] Synced ${result.success} items successfully`)
+    }
+    
+    if (result.failed > 0) {
+      console.error(`[LiveStatus] Failed to sync ${result.failed} items`)
+    }
+  }
 
   // Format seconds to HH:MM:SS
   function formatTime(seconds: number): string {
@@ -146,6 +168,32 @@
           <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-full">
             <span class="text-xs font-medium text-slate-400">No Active Timers</span>
           </div>
+        {/if}
+        
+        <!-- FIX 11: Unsynced Items Badge -->
+        {#if unsyncedCount > 0}
+          <button
+            on:click={handleSyncClick}
+            disabled={isSyncing}
+            class="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 border border-red-600/30 rounded-full hover:bg-red-600/30 transition-colors disabled:opacity-50 disabled:cursor-wait"
+            title="Click to retry syncing {unsyncedCount} pending {unsyncedCount === 1 ? 'item' : 'items'}"
+          >
+            {#if isSyncing}
+              <svg class="animate-spin h-3 w-3 text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span class="text-xs font-semibold text-red-300">Syncing...</span>
+            {:else}
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              <span class="text-xs font-semibold text-red-300">
+                Unsynced ({unsyncedCount})
+              </span>
+            {/if}
+          </button>
         {/if}
       </div>
 
