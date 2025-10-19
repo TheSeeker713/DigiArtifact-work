@@ -203,3 +203,93 @@ export async function initializeStats(force = false): Promise<void> {
     lastUpdated: currentStats.lastUpdated || new Date().toISOString(),
   })
 }
+
+/**
+ * Force recomputation of week aggregates for a specific person and week range
+ * Used by Dashboard debug tools to validate aggregate accuracy
+ */
+export async function recomputeWeekAggregates(params?: {
+  personId?: string
+  weekRange?: { startIso: string; endIso: string }
+}): Promise<{ weeklyTotalHours: number; perJobTotals: Record<string, number> }> {
+  console.log('[StatsAggregator] Force recomputing week aggregates', params)
+
+  // Import timeLogsRepo to query TimeLogs
+  const { timeLogsRepo } = await import('../repos/timeLogsRepo')
+  
+  // Get current week range if not provided
+  let startIso = params?.weekRange?.startIso
+  let endIso = params?.weekRange?.endIso
+  
+  if (!startIso || !endIso) {
+    const settings = get(settingsStore)
+    const weekStart = settings.weekStart || 'monday'
+    const { getCurrentWeekRange } = await import('../utils/timeBuckets')
+    const tz = settings.timezone || 'America/New_York'
+    const range = getCurrentWeekRange(tz, weekStart as any)
+    startIso = range.startIso
+    endIso = range.endIso
+  }
+
+  // Query all TimeLogs (list() returns non-deleted records)
+  const allLogs = await timeLogsRepo.list()
+  
+  // Filter to week range and optionally by personId
+  const { isInRange } = await import('../utils/timeBuckets')
+  const logsInWeek = allLogs.filter((log: import('../types/entities').TimeLogRecord) => {
+    const inRange = isInRange(log.startDT, startIso!, endIso!)
+    const matchesPerson = params?.personId ? log.personId === params.personId : true
+    return inRange && matchesPerson
+  })
+
+  console.log(`[StatsAggregator] Found ${logsInWeek.length} TimeLogs in week range`)
+
+  // Compute totals
+  let totalMinutes = 0
+  const perJobTotals: Record<string, number> = {}
+
+  for (const log of logsInWeek) {
+    totalMinutes += log.durationMinutes
+    perJobTotals[log.jobId] = (perJobTotals[log.jobId] || 0) + log.durationMinutes
+  }
+
+  const weeklyTotalHours = Math.round((totalMinutes / 60) * 100) / 100
+
+  console.log('[StatsAggregator] Recomputed totals:', {
+    weeklyTotalHours,
+    totalMinutes,
+    perJobTotals,
+    logCount: logsInWeek.length,
+  })
+
+  // Update statsStore with recomputed values
+  const settings = get(settingsStore)
+  const targetMinutes = (settings.weekTargetHours || 40) * 60
+  const weekBucket = getCurrentWeek()
+
+  statsStore.setSnapshot({
+    weekly: {
+      weekBucket,
+      totalMinutes,
+      targetMinutes,
+    },
+    perJob: perJobTotals,
+    lastUpdated: new Date().toISOString(),
+  })
+
+  // Persist to cache
+  await persistStatsCache({
+    weekly: {
+      weekBucket,
+      totalMinutes,
+      targetMinutes,
+    },
+    perJob: perJobTotals,
+    lastUpdated: new Date().toISOString(),
+  })
+
+  return {
+    weeklyTotalHours,
+    perJobTotals,
+  }
+}

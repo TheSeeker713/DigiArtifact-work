@@ -20,6 +20,10 @@
     targetJobProgressSelector,
   } from '../lib/selectors/statsSelectors'
   import { sessionStore } from '../lib/stores/sessionStore'
+  import { statsStore } from '../lib/stores/statsStore'
+  import { initializeStats, recomputeWeekAggregates } from '../lib/services/statsAggregationService'
+  import { toastStore } from '../lib/stores/toastStore'
+  import { debugLog } from '../lib/utils/debug'
 
   type ChartConfig = {
     data: AlignedData
@@ -28,15 +32,23 @@
 
   let loadingCharts = true
   let chartError: string | null = null
+  let loadingStats = true
+  let recalculating = false
 
   let hoursSparkline: ChartConfig | null = null
   let revenueChart: ChartConfig | null = null
   let pipelineChart: ChartConfig | null = null
   let agingChart: ChartConfig | null = null
 
+  // Subscribe to statsStore for reactive updates
   $: weeklySummary = $weeklySummarySelector
   $: jobProgress = $targetJobProgressSelector
   $: lowEndMode = $sessionStore.lowEndMode
+  $: currentStats = $statsStore
+  $: isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1'
+
+  // Check if stats are missing (first load)
+  $: statsMissing = currentStats.weeklyTotalHours === 0 && currentStats.lastUpdated === null
 
   function buildSparkline(points: WeekSeriesPoint[]): ChartConfig | null {
     if (!points.length) return null
@@ -144,7 +156,67 @@
       .map((point) => ({ label: point.stage, total: point.total }))
   }
 
+  /**
+   * Force recalculation of week aggregates (debug only)
+   */
+  async function handleRecalc() {
+    if (recalculating) return
+
+    recalculating = true
+    debugLog.ui.info('Dashboard: Force recalculating week aggregates')
+
+    try {
+      const result = await recomputeWeekAggregates()
+      
+      toastStore.enqueue({
+        message: `✅ Recalculated: ${result.weeklyTotalHours.toFixed(2)} hrs this week`,
+        tone: 'success',
+        duration: 5000,
+      })
+
+      const jobSummary = Object.entries(result.perJobTotals)
+        .map(([jobId, minutes]) => `${jobId.substring(0, 8)}: ${(minutes / 60).toFixed(2)}h`)
+        .join(', ')
+      
+      if (jobSummary) {
+        toastStore.enqueue({
+          message: `Per-job: ${jobSummary}`,
+          tone: 'info',
+          duration: 6000,
+        })
+      }
+
+      debugLog.ui.info('Dashboard: Recalc complete', result)
+    } catch (error) {
+      console.error('[Dashboard] Recalc failed:', error)
+      toastStore.enqueue({
+        message: `❌ Recalc failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        tone: 'error',
+        duration: 5000,
+      })
+    } finally {
+      recalculating = false
+    }
+  }
+
   onMount(async () => {
+    // Initialize stats from cache or recompute
+    loadingStats = true
+    try {
+      await initializeStats()
+      debugLog.ui.info('Dashboard: Stats initialized')
+    } catch (error) {
+      console.error('[Dashboard] Failed to initialize stats:', error)
+      toastStore.enqueue({
+        message: 'Unable to load weekly stats. Please refresh.',
+        tone: 'warning',
+        duration: 5000,
+      })
+    } finally {
+      loadingStats = false
+    }
+
+    // Load chart data
     loadingCharts = true
     chartError = null
 
@@ -191,26 +263,61 @@
     <article class="space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-5">
       <header class="flex items-center justify-between">
         <h3 class="text-lg font-semibold text-slate-100">Hours This Week</h3>
-        <span class="font-mono text-xl text-slate-50">{weeklySummary.totalHours.toFixed(2)} hrs</span>
+        {#if loadingStats}
+          <span class="font-mono text-xl text-slate-400 animate-pulse">--.- hrs</span>
+        {:else}
+          <span class="font-mono text-xl text-slate-50">{weeklySummary.totalHours.toFixed(2)} hrs</span>
+        {/if}
       </header>
       <p class="text-xs text-slate-400">
         {weeklySummary.weekRange.label}
       </p>
-      <div class="h-3 w-full rounded-lg bg-slate-800">
-        <div
-          class="h-3 rounded-lg bg-brand-primary transition-[width] duration-300"
-          style={`width: ${Math.min(100, weeklySummary.progressRatio * 100).toFixed(1)}%;`}
-        ></div>
-      </div>
+      {#if loadingStats}
+        <div class="h-3 w-full rounded-lg bg-slate-800 animate-pulse"></div>
+      {:else}
+        <div class="h-3 w-full rounded-lg bg-slate-800">
+          <div
+            class="h-3 rounded-lg bg-brand-primary transition-[width] duration-300"
+            style={`width: ${Math.min(100, weeklySummary.progressRatio * 100).toFixed(1)}%;`}
+          ></div>
+        </div>
+      {/if}
       <div class="flex justify-between text-xs text-slate-400">
-        <span>Target: {weeklySummary.targetHours.toFixed(2)} hrs</span>
-        <span>{(weeklySummary.progressRatio * 100).toFixed(1)}% of goal</span>
+        {#if loadingStats}
+          <span class="animate-pulse">Loading stats...</span>
+          <span></span>
+        {:else}
+          <span>Target: {weeklySummary.targetHours.toFixed(2)} hrs</span>
+          <span>{(weeklySummary.progressRatio * 100).toFixed(1)}% of goal</span>
+        {/if}
       </div>
+      {#if isDebugMode}
+        <button
+          type="button"
+          disabled={recalculating}
+          on:click={handleRecalc}
+          class="mt-2 rounded-lg border border-amber-700 bg-amber-900/30 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {recalculating ? '⏳ Recalculating...' : '🔄 Recalc (Debug)'}
+        </button>
+      {/if}
     </article>
 
     <article class="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-5">
       <h3 class="text-lg font-semibold text-slate-100">Per-Job Progress</h3>
-      {#if jobProgress.length}
+      {#if loadingStats}
+        <div class="space-y-3">
+          {#each Array(2) as _, i}
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="h-4 w-24 rounded bg-slate-800 animate-pulse"></span>
+                <span class="h-4 w-20 rounded bg-slate-800 animate-pulse"></span>
+              </div>
+              <div class="h-2 w-full rounded-lg bg-slate-800 animate-pulse"></div>
+            </div>
+          {/each}
+        </div>
+      {:else if jobProgress.length}
         <ul class="space-y-3 text-sm text-slate-300">
           {#each jobProgress as job}
             <li class="space-y-2">
