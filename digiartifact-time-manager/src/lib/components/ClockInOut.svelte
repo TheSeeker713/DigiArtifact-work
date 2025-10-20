@@ -643,7 +643,7 @@
   }
 </script>
 
-<article class="rounded-xl border border-slate-800 bg-slate-900/70 p-5 space-y-4">
+<article data-onboarding="work-session" class="rounded-xl border border-slate-800 bg-slate-900/70 p-5 space-y-4">
   <header class="flex items-center justify-between">
     <h3 class="text-lg font-semibold text-slate-100">Work Session</h3>
     {#if activeSession}

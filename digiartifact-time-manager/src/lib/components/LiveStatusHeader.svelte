@@ -149,7 +149,7 @@
   $: activeTimerCount = (activeSession ? 1 : 0) + activeTasks.length
 </script>
 
-<header class="sticky top-0 z-50 bg-gradient-to-r from-slate-900/95 to-slate-800/95 backdrop-blur-sm border-b border-slate-700 shadow-lg">
+<header data-onboarding="live-status" class="sticky top-0 z-50 bg-gradient-to-r from-slate-900/95 to-slate-800/95 backdrop-blur-sm border-b border-slate-700 shadow-lg">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-14 gap-4">
       <!-- Left: Active Timers Badge -->

@@ -255,7 +255,7 @@
   })
 </script>
 
-<section class="space-y-6">
+<section class="dashboard-main space-y-6">
   <header class="space-y-2">
     <h2 class="text-2xl font-semibold text-brand-primary">Dashboard</h2>
     <p class="text-sm text-slate-400">
@@ -270,7 +270,7 @@
   </div>
 
   <div class="grid gap-4 md:grid-cols-2">
-    <article class="space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+    <article data-onboarding="hours-this-week" class="space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-5">
       <header class="flex items-center justify-between">
         <h3 class="text-lg font-semibold text-slate-100">Hours This Week</h3>
         {#if loadingStats}

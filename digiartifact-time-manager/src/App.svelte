@@ -6,12 +6,15 @@
   import LiveStatusHeader from './lib/components/LiveStatusHeader.svelte'
   import PerformanceMonitor from './lib/components/PerformanceMonitor.svelte'
   import DiagnosticsPanel from './lib/components/DiagnosticsPanel.svelte'
+  import OnboardingOverlay from './lib/components/OnboardingOverlay.svelte'
   import type { NavSection } from './lib/components/appShell.types'
   import { routes, findRouteByPath, type RouteKey } from './routes'
   import { sessionStore } from './lib/stores/sessionStore'
   import { toastError, toastInfo } from './lib/stores/toastStore'
+  import { onboardingStore, shouldShowOnboarding } from './lib/stores/onboardingStore'
   import { debugControl } from './lib/utils/debug'
   import './lib/utils/dbReset' // Load database reset utility (adds window.resetDatabase())
+  import './lib/utils/dbWipe' // Load database wipe utility for testing
 
   const defaultRoute: RouteKey = 'dashboard'
 
@@ -204,6 +207,13 @@
 
     window.addEventListener('popstate', handlePopState)
 
+    // Start onboarding if first time user
+    if (shouldShowOnboarding()) {
+      setTimeout(() => {
+        onboardingStore.start()
+      }, 1000) // Delay to let page load
+    }
+
     return () => {
       window.removeEventListener('popstate', handlePopState)
       clearInterval(debugCheckInterval)
@@ -249,3 +259,6 @@
     <DiagnosticsPanel />
   </div>
 {/if}
+
+<!-- Onboarding Overlay -->
+<OnboardingOverlay />
