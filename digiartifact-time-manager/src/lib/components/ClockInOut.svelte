@@ -25,6 +25,7 @@
   let start_wallclock: number | null = null // Date.now() for absolute time
   let break_ms_accum = 0 // Accumulated break time in milliseconds
   let break_started_at: number | null = null // Date.now() when break started, null when not on break
+  let persistedWeeklyMinutes = 0 // Minutes already saved to DB for this week (excluding current session)
 
   // FIX 12: Real-time sync - Update elapsed time AND statsStore every second
   function updateElapsedTime() {
@@ -48,11 +49,13 @@
       const work_ms = Math.max(0, elapsed_ms - break_ms_accum - (break_started_at ? (now - break_started_at) : 0))
       const workMinutes = Math.round(work_ms / 60000)
       
-      // Update statsStore with live minutes so "Hours This Week" matches "Total Time"
+      // Update statsStore with live session minutes added to persisted weekly total
       const settings = $settingsStore
       const weekBucket = getWeekLabel(activeSession.clockInTime, settings.timezone, settings.weekStart as any)
       const targetMinutes = settings.weekTargetHours * 60
-      statsStore.updateLiveMinutes(weekBucket, workMinutes, targetMinutes)
+      
+      // Use the new method that properly combines persisted + live time
+      statsStore.setLiveSessionMinutes(weekBucket, persistedWeeklyMinutes, workMinutes, targetMinutes)
     }
   }
 
@@ -155,6 +158,27 @@
       elapsedTime = 0
       breakTime = 0
       currentBreak = null
+      
+      // Load current persisted weekly minutes to avoid overwriting existing data
+      try {
+        const settings = $settingsStore
+        const weekBucket = getWeekLabel(startTime, settings.timezone, settings.weekStart as any)
+        const currentStats = $statsStore
+        
+        // If it's the same week as the stats, use the persisted total
+        if (currentStats.weekly.weekBucket === weekBucket) {
+          persistedWeeklyMinutes = currentStats.weekly.totalMinutes
+        } else {
+          // Different week, need to recompute
+          const result = await recomputeWeekAggregates({ weekBucket })
+          persistedWeeklyMinutes = result.weeklyTotalHours * 60
+        }
+        
+        console.log('[ClockInOut] Loaded persisted weekly minutes:', persistedWeeklyMinutes)
+      } catch (error) {
+        console.error('[ClockInOut] Failed to load persisted weekly minutes:', error)
+        persistedWeeklyMinutes = 0
+      }
 
       // Start interval
       if (intervalId !== null) {
@@ -328,6 +352,7 @@
           clockOutTime: new Date().toISOString(),
           status: 'completed',
           totalMinutes,
+          totalBreakMinutes,
           netMinutes,
         })
 
@@ -359,6 +384,7 @@
             clockOutTime: new Date().toISOString(),
             status: 'completed',
             totalMinutes,
+            totalBreakMinutes,
             netMinutes,
           },
         })
@@ -389,7 +415,8 @@
       
       // FIX 9: Recompute week aggregates (updates "This Week" stats)
       try {
-        await recomputeWeekAggregates()
+        const result = await recomputeWeekAggregates()
+        persistedWeeklyMinutes = result.weeklyTotalHours * 60 // Update for potential future sessions
         debugLog.time.info('Clock Out: Stats recomputed successfully')
       } catch (statsError) {
         console.error('[ClockInOut] Failed to recompute stats after clock out:', statsError)
@@ -605,7 +632,7 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     // FIX 9: Don't load active session - workSessionStore is already initialized
     // If activeSession exists (from store), initialize timer state
     if (activeSession) {
@@ -618,6 +645,30 @@
         break_started_at = new Date(currentBreak.startTime).getTime()
       } else {
         break_started_at = null
+      }
+      
+      // Load persisted weekly minutes for existing session
+      try {
+        const settings = $settingsStore
+        const weekBucket = getWeekLabel(activeSession.clockInTime, settings.timezone, settings.weekStart as any)
+        const currentStats = $statsStore
+        
+        if (currentStats.weekly.weekBucket === weekBucket) {
+          // Subtract current session's estimated work time to get true persisted amount
+          const sessionStartMs = new Date(activeSession.clockInTime).getTime()
+          const currentWorkMs = Math.max(0, Date.now() - sessionStartMs - break_ms_accum)
+          const currentWorkMinutes = Math.round(currentWorkMs / 60000)
+          
+          persistedWeeklyMinutes = Math.max(0, currentStats.weekly.totalMinutes - currentWorkMinutes)
+        } else {
+          const result = await recomputeWeekAggregates({ weekBucket })
+          persistedWeeklyMinutes = result.weeklyTotalHours * 60
+        }
+        
+        console.log('[ClockInOut] Loaded persisted weekly minutes on resume:', persistedWeeklyMinutes)
+      } catch (error) {
+        console.error('[ClockInOut] Failed to load persisted weekly minutes on resume:', error)
+        persistedWeeklyMinutes = 0
       }
       
       updateElapsedTime()
@@ -692,7 +743,14 @@
         </div>
         <div class="space-y-1">
           <p class="text-xs text-slate-400">Total Time</p>
-          <p class="font-medium text-slate-200">{(elapsedTime / 3600).toFixed(2)}h</p>
+          <p class="font-medium text-slate-200">
+            {(() => {
+              // Calculate net work time (excluding breaks)
+              const totalBreakSeconds = ((activeSession.totalBreakMinutes || 0) * 60) + breakTime
+              const netWorkTime = Math.max(0, elapsedTime - totalBreakSeconds)
+              return (netWorkTime / 3600).toFixed(2)
+            })()}h
+          </p>
         </div>
         <div class="space-y-1">
           <p class="text-xs text-slate-400">Break Time</p>

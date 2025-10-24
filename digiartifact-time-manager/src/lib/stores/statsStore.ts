@@ -126,19 +126,57 @@ function createStatsStore() {
     /**
      * Real-time update for active session minutes
      * Updates weekly totals with current running session time
+     * This adds the live session time to the existing persisted weekly total
      */
-    updateLiveMinutes(weekBucket: string, liveMinutes: number, targetMinutes: number) {
+    updateLiveMinutes(weekBucket: string, liveMinutes: number, targetMinutes: number, persistedMinutes?: number) {
       store.update((state) => {
+        // If we have persisted minutes, add live minutes to them
+        // Otherwise, use the current state's minutes if it's the same week
+        let baseMinutes = 0
+        
+        if (persistedMinutes !== undefined) {
+          baseMinutes = persistedMinutes
+        } else if (state.weekly.weekBucket === weekBucket) {
+          // Use current state for same week, but don't double-count live session
+          // We need to be careful here not to create a feedback loop
+          baseMinutes = state.weekly.totalMinutes
+        }
+        
+        const totalMinutes = baseMinutes + liveMinutes
+
         const weekly = {
           weekBucket,
-          totalMinutes: liveMinutes,
+          totalMinutes,
           targetMinutes,
         }
 
         return {
           ...state,
           weekly,
-          weeklyTotalHours: minutesToHours(liveMinutes),
+          weeklyTotalHours: minutesToHours(totalMinutes),
+          lastUpdated: new Date().toISOString(),
+        }
+      })
+    },
+    
+    /**
+     * Update live session without affecting persisted totals
+     * This is used during active sessions to show real-time progress
+     */
+    setLiveSessionMinutes(weekBucket: string, persistedMinutes: number, liveSessionMinutes: number, targetMinutes: number) {
+      store.update((state) => {
+        const totalMinutes = persistedMinutes + liveSessionMinutes
+
+        const weekly = {
+          weekBucket,
+          totalMinutes,
+          targetMinutes,
+        }
+
+        return {
+          ...state,
+          weekly,
+          weeklyTotalHours: minutesToHours(totalMinutes),
           lastUpdated: new Date().toISOString(),
         }
       })
